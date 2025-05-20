@@ -10,6 +10,7 @@ from .edit_data_screen import EditDataScreen
 class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.current_user = None  # เพิ่มตัวแปรเก็บข้อมูลผู้ใช้ปัจจุบัน
         self.setup_ui()
         
     def setup_ui(self):
@@ -67,8 +68,18 @@ class MainApp(QMainWindow):
         """Handle successful login."""
         from backend.auth import Auth
         
+        # เก็บข้อมูลผู้ใช้
+        self.current_user = user_data
+        
         # Determine where to navigate based on user role
         if Auth.is_admin(user_data['username']):
             self.navigate_to("add_user")
         else:
             self.navigate_to("edit_data")
+        
+        # อัพเดทชื่อผู้ใช้ในหน้าต่างๆ
+        if hasattr(self.edit_data_screen, 'update_user_fullname'):
+            self.edit_data_screen.update_user_fullname(user_data['fullname'])
+        
+        if hasattr(self.add_user_screen, 'update_user_fullname'):
+            self.add_user_screen.update_user_fullname(user_data['fullname'])

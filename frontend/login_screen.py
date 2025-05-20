@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 from backend.auth import Auth
-from frontend.utils import add_shadow_effect
+from frontend.utils.shadow_effect import add_shadow_effect
 
 class LoginScreen(QWidget):
     def __init__(self, parent=None):
@@ -110,7 +110,8 @@ class LoginScreen(QWidget):
         if not username or not password:
             QMessageBox.warning(
                 self, "Login Failed", 
-                "Username and password are required."
+                # "Username and password are required."
+                "Username และ Password ไม่ถูกต้อง"
             )
             return
         
@@ -123,5 +124,6 @@ class LoginScreen(QWidget):
         else:
             QMessageBox.warning(
                 self, "Login Failed", 
-                "Invalid username or password."
+                # "Invalid username or password."
+                "Username หรือ Password ไม่ถูกต้อง"
             )

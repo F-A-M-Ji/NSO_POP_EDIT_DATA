@@ -23,7 +23,7 @@ class LocationData:
             # Get the path to the Excel file
             excel_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "assets", "reg_prov.xlsx"
+                "assets", "reg_prov_dist_subdist.xlsx"
             )
             
             # Load the Excel file

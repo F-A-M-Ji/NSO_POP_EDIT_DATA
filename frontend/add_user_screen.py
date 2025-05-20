@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 from backend.user import User
-from frontend.utils import add_shadow_effect
+from frontend.utils.shadow_effect import add_shadow_effect
 
 class AddUserScreen(QWidget):
     def __init__(self, parent=None):
@@ -127,7 +127,8 @@ class AddUserScreen(QWidget):
         if not username or not password or not fullname:
             QMessageBox.warning(
                 self, "Validation Error", 
-                "All fields are required."
+                # "All fields are required."
+                "กรุณากรอกข้อมูลให้ถูกต้อง"
             )
             return
 

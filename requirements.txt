@@ -1,0 +1,5 @@
+PyQt5
+pyodbc
+bcrypt
+pandas
+openpyxl

@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from frontend.utils.resource_path import resource_path
 
 class LocationData:
     _instance = None
@@ -21,13 +22,15 @@ class LocationData:
     def load_data(self):
         try:
             # Get the path to the Excel file
-            excel_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "assets", "reg_prov_dist_subdist.xlsx"
-            )
+            # excel_path = os.path.join(
+            #     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            #     "assets", 
+            #     "reg_prov_dist_subdist.xlsx"
+            # )
+            excel_path = resource_path(os.path.join("assets", "reg_prov_dist_subdist.xlsx"))
             
             # Load the Excel file
-            LocationData._data = pd.read_excel(excel_path, sheet_name="รหัสเขตการปกครอง")
+            LocationData._data = pd.read_excel(excel_path, sheet_name="Area_code")
             return True
         except Exception as e:
             print(f"Error loading location data: {str(e)}")

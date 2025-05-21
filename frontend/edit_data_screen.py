@@ -553,7 +553,7 @@ from backend.column_mapper import ColumnMapper
 from frontend.widgets.multi_line_header import MultiLineHeaderView
 from frontend.utils.error_message import show_error_message
 from frontend.utils.shadow_effect import add_shadow_effect
-
+from frontend.utils.resource_path import resource_path
 
 class EditDataScreen(QWidget):
     def __init__(self, parent=None):
@@ -771,14 +771,15 @@ class EditDataScreen(QWidget):
     def load_location_data(self):
         try:
             # Get the path to the Excel file
-            excel_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "assets",
-                "reg_prov_dist_subdist.xlsx",
-            )
+            # excel_path = os.path.join(
+            #     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            #     "assets",
+            #     "reg_prov_dist_subdist.xlsx",
+            # )
+            excel_path = resource_path(os.path.join("assets", "reg_prov_dist_subdist.xlsx"))
 
             # Load the Excel file
-            self.location_data = pd.read_excel(excel_path, sheet_name="รหัสเขตการปกครอง")
+            self.location_data = pd.read_excel(excel_path, sheet_name="Area_code")
 
             # Populate the region dropdown
             regions = sorted(self.location_data["RegName"].unique())

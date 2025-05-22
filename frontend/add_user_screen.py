@@ -44,10 +44,10 @@ class AddUserScreen(QWidget):
 
         header_layout.addStretch(1)  # Space between label and logout button
 
-        logout_button = QPushButton("Logout")
+        logout_button = QPushButton("back")
         logout_button.setObjectName("secondaryButton")
         logout_button.setCursor(Qt.PointingHandCursor)
-        logout_button.clicked.connect(self.logout)
+        logout_button.clicked.connect(self.back)
         header_layout.addWidget(logout_button)
 
         center_column.addLayout(header_layout)
@@ -157,14 +157,15 @@ class AddUserScreen(QWidget):
         self.username_input.clear()
         self.password_input.clear()
 
-    def logout(self):
+    def back(self):
         """Clears input fields and navigates to the login screen."""
         self.clear_input_fields()
+        self.parent_app.navigate_to("admin_menu")
 
-        if self.parent_app and hasattr(self.parent_app, "perform_logout"):
-            self.parent_app.perform_logout()
-        else:
-            self.parent_app.navigate_to("login")
+        # if self.parent_app and hasattr(self.parent_app, "perform_logout"):
+        #     self.parent_app.perform_logout()
+        # else:
+        #     self.parent_app.navigate_to("admin_menu")
 
     def update_user_fullname(self, fullname):
         """Updates the display name of the logged-in admin user."""

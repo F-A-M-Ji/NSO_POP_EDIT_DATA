@@ -6,6 +6,10 @@ import os
 from .login_screen import LoginScreen
 from .add_user_screen import AddUserScreen
 from .edit_data_screen import EditDataScreen
+from .change_password_screen import ChangePasswordScreen
+from .admin_menu_screen import AdminMenuScreen
+from .reset_password_screen import ResetPasswordScreen
+
 
 class MainApp(QMainWindow):
     def __init__(self):
@@ -22,12 +26,18 @@ class MainApp(QMainWindow):
         self.stacked_widget = QStackedWidget()
 
         self.login_screen = LoginScreen(self)
+        self.admin_menu_screen = AdminMenuScreen(self)
         self.add_user_screen = AddUserScreen(self)
+        self.reset_password_screen = ResetPasswordScreen(self)
         self.edit_data_screen = EditDataScreen(self)
-
+        self.change_password_screen = ChangePasswordScreen(self)
+    
         self.stacked_widget.addWidget(self.login_screen)
+        self.stacked_widget.addWidget(self.admin_menu_screen)
         self.stacked_widget.addWidget(self.add_user_screen)
+        self.stacked_widget.addWidget(self.reset_password_screen)
         self.stacked_widget.addWidget(self.edit_data_screen)
+        self.stacked_widget.addWidget(self.change_password_screen)
 
         self.stacked_widget.setCurrentWidget(self.login_screen)
         self.setCentralWidget(self.stacked_widget)
@@ -60,15 +70,19 @@ class MainApp(QMainWindow):
             self.current_user = None
             self.stacked_widget.setCurrentWidget(self.login_screen)
 
-            if hasattr(
-                self.login_screen, "clear_inputs"
-            ):
+            if hasattr(self.login_screen, "clear_inputs"):
                 self.login_screen.clear_inputs()
 
         elif screen_name == "add_user":
             self.stacked_widget.setCurrentWidget(self.add_user_screen)
         elif screen_name == "edit_data":
             self.stacked_widget.setCurrentWidget(self.edit_data_screen)
+        elif screen_name == "change_password":
+            self.stacked_widget.setCurrentWidget(self.change_password_screen)
+        elif screen_name == "admin_menu":
+            self.stacked_widget.setCurrentWidget(self.admin_menu_screen)
+        elif screen_name == "reset_password":
+            self.stacked_widget.setCurrentWidget(self.reset_password_screen)
 
     def login_successful(self, user_data):
         """Handle successful login."""
@@ -82,10 +96,16 @@ class MainApp(QMainWindow):
         )
 
         if Auth.is_admin(user_data["username"]):
-            self.navigate_to("add_user")
+            self.navigate_to("admin_menu")
         else:
             self.navigate_to("edit_data")
 
     def perform_logout(self):
         """Handles the full logout process including screen resets."""
         self.navigate_to("login")
+
+    def navigate_to_change_password(self, user_data):
+        """นำทางไปยังหน้าเปลี่ยนรหัสผ่านพร้อมส่งข้อมูลผู้ใช้"""
+        self.current_user = user_data
+        self.change_password_screen.set_user_data(user_data)
+        self.stacked_widget.setCurrentWidget(self.change_password_screen)

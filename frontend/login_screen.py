@@ -139,13 +139,30 @@ class LoginScreen(QWidget):
             QMessageBox.warning(
                 self,
                 "Login Failed",
-                # "Username and password are required."
                 "Username และ Password ไม่ถูกต้อง",
             )
             return
 
-        user_data = Auth.login(username, password)
+        # ตรวจสอบว่า username เท่ากับ password หรือไม่
+        if username == password:
+            # ตรวจสอบกับฐานข้อมูลว่าข้อมูลถูกต้องหรือไม่
+            user_data = Auth.login(username, password)
+            if user_data:
+                self.username_input.clear()
+                self.password_input.clear()
+                # ถ้าถูกต้อง ให้ไปที่หน้าเปลี่ยนรหัสผ่าน
+                self.parent_app.navigate_to_change_password(user_data)
+                return
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Login Failed",
+                    "Username หรือ Password ไม่ถูกต้อง",
+                )
+                return
 
+        # การเข้าสู่ระบบปกติ
+        user_data = Auth.login(username, password)
         if user_data:
             self.username_input.clear()
             self.password_input.clear()
@@ -154,6 +171,5 @@ class LoginScreen(QWidget):
             QMessageBox.warning(
                 self,
                 "Login Failed",
-                # "Invalid username or password."
                 "Username หรือ Password ไม่ถูกต้อง",
             )

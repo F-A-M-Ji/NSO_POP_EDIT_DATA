@@ -3,6 +3,7 @@ import datetime
 
 from .db import get_connection
 
+
 def fetch_all_r_alldata_fields():
     """Fetches all column names from r_alldata to know the complete structure."""
     conn = None
@@ -21,16 +22,34 @@ def fetch_all_r_alldata_fields():
         if conn:
             conn.close()
 
+
 def search_r_alldata(codes, all_db_fields_r_alldata, logical_pk_fields):
     """
     Searches data from r_alldata and r_alldata_edit based on provided codes.
     """
     sql_conditions = []
     params = []
-    if codes["RegCode"] is not None: sql_conditions.append("ra.RegCode = ?"); params.append(codes["RegCode"])
-    if codes["ProvCode"] is not None: sql_conditions.append("ra.ProvCode = ?"); params.append(codes["ProvCode"])
-    if codes["DistCode"] is not None: sql_conditions.append("ra.DistCode = ?"); params.append(codes["DistCode"])
-    if codes["SubDistCode"] is not None: sql_conditions.append("ra.SubDistCode = ?"); params.append(codes["SubDistCode"])
+    if codes.get("RegCode") is not None:
+        if codes["RegCode"] == 0:
+            # ครอบคลุมทั้ง NULL และสตริงว่าง
+            sql_conditions.append(
+                "(ra.RegCode = ? AND ra.RegCode IS NOT NULL AND ra.RegCode <> '')"
+            )
+        else:
+            sql_conditions.append("ra.RegCode = ?")
+        params.append(codes["RegCode"])
+
+    if codes["ProvCode"] is not None:
+        sql_conditions.append("ra.ProvCode = ?")
+        params.append(codes["ProvCode"])
+
+    if codes["DistCode"] is not None:
+        sql_conditions.append("ra.DistCode = ?")
+        params.append(codes["DistCode"])
+
+    if codes["SubDistCode"] is not None:
+        sql_conditions.append("ra.SubDistCode = ?")
+        params.append(codes["SubDistCode"])
 
     if not sql_conditions:
         return [], [], "No search criteria provided."
@@ -38,10 +57,14 @@ def search_r_alldata(codes, all_db_fields_r_alldata, logical_pk_fields):
     select_clauses = []
     for field in all_db_fields_r_alldata:
         quoted_field = f"[{field}]"
-        select_clauses.append(f"COALESCE(le.{quoted_field}, ra.{quoted_field}) AS {quoted_field}")
+        select_clauses.append(
+            f"COALESCE(le.{quoted_field}, ra.{quoted_field}) AS {quoted_field}"
+        )
     select_sql_part = ", ".join(select_clauses)
-    
-    pk_join_condition = " AND ".join([f"ra.[{pk_f}] = le.[{pk_f}]" for pk_f in logical_pk_fields])
+
+    pk_join_condition = " AND ".join(
+        [f"ra.[{pk_f}] = le.[{pk_f}]" for pk_f in logical_pk_fields]
+    )
     pk_partition_by = ", ".join([f"[{pk_f}]" for pk_f in logical_pk_fields])
 
     query = f"""
@@ -53,7 +76,7 @@ def search_r_alldata(codes, all_db_fields_r_alldata, logical_pk_fields):
     FROM r_alldata ra
     LEFT JOIN LatestEdits le ON {pk_join_condition} AND le.rn = 1
     """
-    
+
     if sql_conditions:
         query += " WHERE " + " AND ".join(sql_conditions)
     query += " ORDER BY ra.RegName, ra.ProvName, ra.DistName, ra.SubDistName"
@@ -63,18 +86,19 @@ def search_r_alldata(codes, all_db_fields_r_alldata, logical_pk_fields):
         conn = get_connection()
         if not conn:
             return [], [], "Cannot connect to the database."
-        
+
         with conn.cursor() as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
             db_column_names = [col[0] for col in cursor.description]
-            return results, db_column_names, None # No error
-            
+            return results, db_column_names, None  # No error
+
     except pyodbc.Error as e:
         return [], [], f"Error during search: {e}"
     finally:
         if conn:
             conn.close()
+
 
 def save_edited_r_alldata_rows(list_of_data_to_save_dicts, all_db_fields_r_alldata):
     """
@@ -84,7 +108,7 @@ def save_edited_r_alldata_rows(list_of_data_to_save_dicts, all_db_fields_r_allda
     """
     conn = None
     saved_rows_count = 0
-    
+
     if not list_of_data_to_save_dicts:
         return 0, "No data provided to save."
 
@@ -103,13 +127,13 @@ def save_edited_r_alldata_rows(list_of_data_to_save_dicts, all_db_fields_r_allda
                 values_for_insert = []
                 for col_name in r_alldata_edit_columns:
                     values_for_insert.append(data_to_save.get(col_name))
-                
+
                 cursor.execute(sql_insert, values_for_insert)
                 saved_rows_count += 1
-        
+
         if saved_rows_count > 0:
             conn.commit()
-            return saved_rows_count, None # Success
+            return saved_rows_count, None  # Success
         else:
             return 0, "No rows were actually processed for saving."
 

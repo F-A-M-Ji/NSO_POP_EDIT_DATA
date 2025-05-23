@@ -49,7 +49,7 @@ class ChangePasswordScreen(QWidget):
 
         header_layout.addStretch(1)
 
-        logout_button = QPushButton("back")  # ให้เหมือนกับหน้าอื่น ใช้ "back"
+        logout_button = QPushButton("back")
         logout_button.setObjectName("secondaryButton")
         logout_button.setCursor(Qt.PointingHandCursor)
         logout_button.clicked.connect(self.go_back_to_login)
@@ -57,7 +57,7 @@ class ChangePasswordScreen(QWidget):
 
         center_column.addLayout(header_layout)
 
-        # สร้างเฟรมสำหรับฟอร์มเปลี่ยนรหัสผ่าน (เปลี่ยนเป็น contentFrame เหมือนหน้าอื่น)
+        # สร้างเฟรมสำหรับฟอร์มเปลี่ยนรหัสผ่าน
         password_frame = QFrame()
         password_frame.setObjectName(
             "contentFrame"
@@ -65,7 +65,7 @@ class ChangePasswordScreen(QWidget):
         add_shadow_effect(password_frame)
 
         password_layout = QVBoxLayout(password_frame)
-        password_layout.setSpacing(15)  # เปลี่ยนให้เหมือนกับหน้าอื่น
+        password_layout.setSpacing(15)
 
         # หัวข้อฟอร์ม
         form_title = QLabel("กรุณาตั้งรหัสผ่านใหม่")
@@ -100,7 +100,7 @@ class ChangePasswordScreen(QWidget):
                 QLineEdit.Normal if checked else QLineEdit.Password
             )
         )
-
+        self.new_password_input.setFixedWidth(250)
         new_password_layout.addWidget(new_password_label)
         new_password_layout.addWidget(self.new_password_input)
         form_layout.addLayout(new_password_layout)
@@ -124,7 +124,7 @@ class ChangePasswordScreen(QWidget):
                 QLineEdit.Normal if checked else QLineEdit.Password
             )
         )
-
+        self.confirm_password_input.setFixedWidth(250)
         confirm_password_layout.addWidget(confirm_password_label)
         confirm_password_layout.addWidget(self.confirm_password_input)
         form_layout.addLayout(confirm_password_layout)
@@ -145,8 +145,6 @@ class ChangePasswordScreen(QWidget):
         button_layout.addWidget(self.submit_button)
         button_layout.addStretch()
         password_layout.addLayout(button_layout)
-
-        # ตัดปุ่มกลับที่อยู่ด้านล่างออก เพราะมี back button ด้านบนแล้ว
 
         center_column.addWidget(password_frame)
         center_column.addStretch(1)

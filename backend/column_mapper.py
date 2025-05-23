@@ -24,11 +24,6 @@ class ColumnMapper:
     def load_mappings(self):
         """โหลดข้อมูลการแมปคอลัมน์จากไฟล์ Excel"""
         try:
-            # excel_path = os.path.join(
-            #     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            #     "assets",
-            #     "column_name.xlsx",
-            # )
             excel_path = resource_path(os.path.join("assets", "column_name.xlsx"))
 
             # โหลดข้อมูลจากไฟล์ Excel

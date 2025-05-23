@@ -21,12 +21,6 @@ class LocationData:
     
     def load_data(self):
         try:
-            # Get the path to the Excel file
-            # excel_path = os.path.join(
-            #     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            #     "assets", 
-            #     "reg_prov_dist_subdist.xlsx"
-            # )
             excel_path = resource_path(os.path.join("assets", "reg_prov_dist_subdist.xlsx"))
             
             # Load the Excel file

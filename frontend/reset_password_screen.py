@@ -33,14 +33,6 @@ class ResetPasswordScreen(QWidget):
         # ส่วนหัว
         header_layout = QHBoxLayout()
 
-        # back_button = QPushButton("กลับ")
-        # back_button.setObjectName("secondaryButton")
-        # back_button.setCursor(Qt.PointingHandCursor)
-        # back_button.clicked.connect(self.go_back)
-        # header_layout.addWidget(back_button)
-
-        # header_layout.addStretch(1)
-
         header_title_label = QLabel("Reset Password")
         header_title_label.setAlignment(Qt.AlignCenter)
         header_title_label.setObjectName("headerLabel")
@@ -65,17 +57,6 @@ class ResetPasswordScreen(QWidget):
 
         add_shadow_effect(reset_frame)
 
-        # หัวข้อฟอร์ม
-        # form_title = QLabel("รีเซ็ตรหัสผ่านผู้ใช้งาน")
-        # form_title.setAlignment(Qt.AlignCenter)
-        # form_title.setObjectName("formTitle")
-        # reset_layout.addWidget(form_title)
-
-        # คำอธิบาย
-        # form_description = QLabel("ผู้ใช้งานจะต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป")
-        # form_description.setAlignment(Qt.AlignCenter)
-        # reset_layout.addWidget(form_description)
-
         # ช่องป้อน username
         username_layout = QVBoxLayout()
         username_label = QLabel("Username:")
@@ -83,6 +64,7 @@ class ResetPasswordScreen(QWidget):
         self.username_input.setPlaceholderText(
             "Enter username to reset password."
         )
+        self.username_input.setFixedWidth(230)
         username_layout.addWidget(username_label)
         username_layout.addWidget(self.username_input)
         reset_layout.addLayout(username_layout)
@@ -132,12 +114,6 @@ class ResetPasswordScreen(QWidget):
         else:
             QMessageBox.warning(self, "ข้อผิดพลาด", f"ไม่สามารถรีเซ็ตรหัสผ่านได้: {message}")
 
-    # def go_back(self):
-    #     """กลับไปที่หน้าเมนูแอดมิน"""
-    #     self.username_input.clear()
-    #     self.parent_app.navigate_to("admin_menu")
-
     def back(self):
-        """ออกจากระบบและกลับไปที่หน้าล็อกอิน"""
         self.username_input.clear()
         self.parent_app.navigate_to("admin_menu")

@@ -8,7 +8,6 @@ DB_CONFIG = {
 }
 
 
-# ตัวอย่างการแก้ไขไฟล์ config.py
 # import os
 # import json
 

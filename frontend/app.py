@@ -18,7 +18,7 @@ class MainApp(QMainWindow):
         self.setup_ui()
 
     def setup_ui(self):
-        self.setWindowTitle("FAM")
+        self.setWindowTitle("การแก้ไขข้อมูล สปค. 68")
         self.setGeometry(100, 100, 800, 600)
 
         self.load_stylesheet()

@@ -247,6 +247,16 @@ class EditDataScreen(QWidget):
         self.header.updateGeometries()
         self.results_table.updateGeometries()
 
+    def update_save_button_state(self):
+        """อัปเดตสถานะปุ่มบันทึก - เปิดใช้งานเมื่อมีการแก้ไข ปิดใช้งานเมื่อไม่มี"""
+        has_edits = bool(self.edited_items)
+        self.save_edits_button.setEnabled(has_edits)
+
+        # Force stylesheet update
+        self.save_edits_button.style().unpolish(self.save_edits_button)
+        self.save_edits_button.style().polish(self.save_edits_button)
+        self.save_edits_button.update()
+        
     def handle_item_changed(self, item: QTableWidgetItem):
         if not item or not self.original_data_cache:
             return
@@ -285,13 +295,13 @@ class EditDataScreen(QWidget):
         if original_value_str != new_text_processed:
             self.edited_items[(row, visual_col)] = new_text_processed
             item.setBackground(QColor("lightyellow"))
-            self.save_edits_button.setEnabled(True)
         else:
             if (row, visual_col) in self.edited_items:
                 del self.edited_items[(row, visual_col)]
             item.setBackground(QBrush())
-            if not self.edited_items:
-                self.save_edits_button.setEnabled(False)
+
+        # อัปเดตสถานะปุ่มหลังจากมีการเปลี่ยนแปลง
+        self.update_save_button_state()
 
     def search_data(self):
         if not self._all_db_fields_r_alldata:
@@ -332,7 +342,8 @@ class EditDataScreen(QWidget):
         self.db_column_names = db_cols
 
         self.edited_items.clear()
-        self.save_edits_button.setEnabled(False)
+        # self.save_edits_button.setEnabled(False)
+        self.update_save_button_state()
 
         self.display_results(results)
 
@@ -348,7 +359,8 @@ class EditDataScreen(QWidget):
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
         self.edited_items.clear()
-        self.save_edits_button.setEnabled(False)
+        # self.save_edits_button.setEnabled(False)
+        self.update_save_button_state()
 
         if not results_tuples:
             if self.results_table.columnCount() > 0:
@@ -401,8 +413,8 @@ class EditDataScreen(QWidget):
 
         if not self.edited_items:
             show_info_message(self, "ไม่มีการเปลี่ยนแปลง", "ไม่มีข้อมูลที่แตกต่างจากเดิมให้บันทึก")
-            if self.save_edits_button.isEnabled():
-                self.save_edits_button.setEnabled(False)
+            # แทนที่ if self.save_edits_button.isEnabled(): self.save_edits_button.setEnabled(False) ด้วย:
+            self.update_save_button_state()
             return
 
         reply = QMessageBox.question(
@@ -425,7 +437,8 @@ class EditDataScreen(QWidget):
 
         if not self.edited_items:
             show_info_message(self, "ไม่มีการเปลี่ยนแปลง", "ไม่มีข้อมูลที่แตกต่างจากเดิมให้บันทึก")
-            self.save_edits_button.setEnabled(False)
+            # self.save_edits_button.setEnabled(False)
+            self.update_save_button_state()
             return
 
         editor_fullname = self.parent_app.current_user["fullname"]
@@ -445,9 +458,9 @@ class EditDataScreen(QWidget):
 
         for table_row_idx in edited_table_row_indices:
             if table_row_idx >= len(self.original_data_cache):
-                print(
-                    f"Warning: Skipping save for table_row_idx {table_row_idx} due to cache mismatch."
-                )
+                # print(
+                #     f"Warning: Skipping save for table_row_idx {table_row_idx} due to cache mismatch."
+                # )
                 continue
 
             data_for_this_row_dict = self.original_data_cache[table_row_idx].copy()
@@ -463,9 +476,9 @@ class EditDataScreen(QWidget):
                             ]
 
                             if db_field_name_for_edit in self.LOGICAL_PK_FIELDS:
-                                print(
-                                    f"Warning: Attempt to save edit for PK field {db_field_name_for_edit} in row {table_row_idx}. Skipping this change."
-                                )
+                                # print(
+                                #     f"Warning: Attempt to save edit for PK field {db_field_name_for_edit} in row {table_row_idx}. Skipping this change."
+                                # )
                                 continue
 
                             data_for_this_row_dict[db_field_name_for_edit] = (
@@ -512,8 +525,9 @@ class EditDataScreen(QWidget):
                     if item:
                         item.setBackground(QBrush())
                 self.edited_items.clear()
-                self.save_edits_button.setEnabled(False)
-                print("Refreshing data after save...")
+                # self.save_edits_button.setEnabled(False)
+                self.update_save_button_state()
+                # print("Refreshing data after save...")
                 self.search_data()
             else:
                 show_info_message(
@@ -528,7 +542,7 @@ class EditDataScreen(QWidget):
                             item.setBackground(QBrush())
                     self.edited_items.clear()
                     self.save_edits_button.setEnabled(False)
-                    print("Refreshing data after save...")
+                    # print("Refreshing data after save...")
                     self.search_data()
                 else:
                     show_info_message(
@@ -550,7 +564,8 @@ class EditDataScreen(QWidget):
         self.original_data_cache.clear()
         self.db_column_names = []
         self.edited_items.clear()
-        self.save_edits_button.setEnabled(False)
+        # แทนที่ self.save_edits_button.setEnabled(False) ด้วย:
+        self.update_save_button_state()
 
         if hasattr(self, "user_fullname_label"):
             self.user_fullname_label.setText("User: N/A")
@@ -568,7 +583,8 @@ class EditDataScreen(QWidget):
         self.original_data_cache.clear()
         self.db_column_names = []
         self.edited_items.clear()
-        self.save_edits_button.setEnabled(False)
+        # self.save_edits_button.setEnabled(False)
+        self.update_save_button_state()
 
     def logout(self):
         if self.edited_items:

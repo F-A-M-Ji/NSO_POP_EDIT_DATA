@@ -27,7 +27,7 @@ class LocationData:
             LocationData._data = pd.read_excel(excel_path, sheet_name="Area_code")
             return True
         except Exception as e:
-            print(f"Error loading location data: {str(e)}")
+            # print(f"Error loading location data: {str(e)}")
             return False
     
     def get_data(self):

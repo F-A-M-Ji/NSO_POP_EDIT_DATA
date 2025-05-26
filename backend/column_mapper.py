@@ -38,7 +38,7 @@ class ColumnMapper:
 
             return True
         except Exception as e:
-            print(f"Failed to load column mappings: {str(e)}")
+            # print(f"Failed to load column mappings: {str(e)}")
             return False
 
     def get_column_name(self, field_name):

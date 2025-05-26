@@ -36,6 +36,8 @@ from frontend.utils.resource_path import resource_path
 class EditDataScreen(QWidget):
     LOGICAL_PK_FIELDS = ["EA_Code_15", "Building_No", "Household_No", "Population_No"]
 
+    NON_EDITABLE_FIELDS = ["FirstName", "LastName"]
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_app = parent
@@ -162,11 +164,11 @@ class EditDataScreen(QWidget):
 
         # เพิ่มพื้นที่แสดงสถานะการแก้ไข
         status_layout = QHBoxLayout()
-    
+
         self.edit_status_label = QLabel("ไม่มีการแก้ไข")
         self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
         status_layout.addWidget(self.edit_status_label)
-    
+
         status_layout.addStretch()
 
         self.results_table = QTableWidget()
@@ -179,7 +181,7 @@ class EditDataScreen(QWidget):
         self.reset_edits_button.clicked.connect(self.reset_all_edits)
         self.reset_edits_button.setVisible(False)  # ซ่อนไว้ก่อน
         # status_layout.addWidget(self.reset_edits_button)
-    
+
         results_layout.addLayout(status_layout)
 
         self.save_edits_button = QPushButton("บันทึกการแก้ไข")
@@ -270,7 +272,7 @@ class EditDataScreen(QWidget):
         """ยกเลิกการแก้ไขทั้งหมดและคืนค่าเดิม"""
         if not self.edited_items:
             return
-        
+
         reply = QMessageBox.question(
             self,
             "ยกเลิกการแก้ไข",
@@ -278,22 +280,26 @@ class EditDataScreen(QWidget):
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
-    
+
         if reply == QMessageBox.Yes:
             # คืนค่าเดิมให้กับทุก cell ที่ถูกแก้ไข
             displayed_db_fields = self.column_mapper.get_fields_to_show()
-        
-            for (row, visual_col) in list(self.edited_items.keys()):
+
+            for row, visual_col in list(self.edited_items.keys()):
                 item = self.results_table.item(row, visual_col)
                 if item and row < len(self.original_data_cache):
                     db_field_col_idx = visual_col - 1
                     if 0 <= db_field_col_idx < len(displayed_db_fields):
                         db_field_name = displayed_db_fields[db_field_col_idx]
-                        original_value = self.original_data_cache[row].get(db_field_name)
-                        original_text = str(original_value) if original_value is not None else ""
+                        original_value = self.original_data_cache[row].get(
+                            db_field_name
+                        )
+                        original_text = (
+                            str(original_value) if original_value is not None else ""
+                        )
                         item.setText(original_text)
                         item.setBackground(QBrush())  # คืนสีพื้นหลัง
-        
+
             # ล้างการแก้ไขทั้งหมด
             self.edited_items.clear()
             self.update_save_button_state()
@@ -302,29 +308,33 @@ class EditDataScreen(QWidget):
         """อัปเดตสถานะปุ่มบันทึก และแสดงข้อมูลการแก้ไขปัจจุบัน"""
         has_edits = bool(self.edited_items)
         edit_count = len(self.edited_items)
-    
+
         # อัปเดตสถานะปุ่มบันทึก
         self.save_edits_button.setEnabled(has_edits)
-    
+
         # อัปเดตข้อความบนปุ่ม
         if has_edits:
             self.save_edits_button.setText(f"บันทึกการแก้ไข ({edit_count})")
         else:
             self.save_edits_button.setText("บันทึกการแก้ไข")
-    
+
         # อัปเดตสถานะการแก้ไข
-        if hasattr(self, 'edit_status_label'):
+        if hasattr(self, "edit_status_label"):
             if has_edits:
                 self.edit_status_label.setText(f"มีการแก้ไข {edit_count} รายการ")
-                self.edit_status_label.setStyleSheet("color: #FF9800; font-style: italic; font-weight: bold;")
+                self.edit_status_label.setStyleSheet(
+                    "color: #FF9800; font-style: italic; font-weight: bold;"
+                )
             else:
                 self.edit_status_label.setText("ไม่มีการแก้ไข")
-                self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
-    
+                self.edit_status_label.setStyleSheet(
+                    "color: #666666; font-style: italic;"
+                )
+
         # แสดง/ซ่อนปุ่มรีเซ็ต
-        if hasattr(self, 'reset_edits_button'):
+        if hasattr(self, "reset_edits_button"):
             self.reset_edits_button.setVisible(has_edits)
-    
+
         # Force style update
         self.save_edits_button.style().unpolish(self.save_edits_button)
         self.save_edits_button.style().polish(self.save_edits_button)
@@ -337,7 +347,7 @@ class EditDataScreen(QWidget):
 
         row = item.row()
         visual_col = item.column()
-    
+
         # ข้ามคอลัมน์ลำดับ
         if visual_col == 0:
             return
@@ -356,8 +366,11 @@ class EditDataScreen(QWidget):
 
         db_field_name_for_column = displayed_db_fields[db_field_col_idx]
 
-        # ป้องกันการแก้ไข Primary Key fields
-        if db_field_name_for_column in self.LOGICAL_PK_FIELDS:
+        # ป้องกันการแก้ไข Primary Key fields และฟิลด์ที่กำหนดว่าไม่สามารถแก้ไขได้
+        if (
+            db_field_name_for_column in self.LOGICAL_PK_FIELDS
+            or db_field_name_for_column in self.NON_EDITABLE_FIELDS
+        ):
             original_value = original_row_dict.get(db_field_name_for_column)
             item.setText(str(original_value) if original_value is not None else "")
             return
@@ -365,7 +378,7 @@ class EditDataScreen(QWidget):
         # ดึงข้อมูลใหม่และเดิม
         new_text = item.text().strip()  # เพิ่ม strip() เพื่อลบช่องว่าง
         original_value = original_row_dict.get(db_field_name_for_column)
-    
+
         # แปลงข้อมูลเดิมเป็น string เพื่อเปรียบเทียบ
         if original_value is None:
             original_value_str = ""
@@ -380,7 +393,7 @@ class EditDataScreen(QWidget):
 
         # เปรียบเทียบข้อมูล
         is_changed = original_value_str != new_text
-    
+
         if is_changed:
             # มีการเปลี่ยนแปลง - เพิ่มลงใน edited_items และเปลี่ยนสีพื้นหลัง
             self.edited_items[(row, visual_col)] = new_text
@@ -396,13 +409,13 @@ class EditDataScreen(QWidget):
 
         # อัปเดตสถานะปุ่มทันทีหลังจากการเปลี่ยนแปลง
         self.update_save_button_state()
-    
+
         # แสดงจำนวนการแก้ไขปัจจุบัน (สำหรับ debug)
         # print(f"Total edits: {len(self.edited_items)}")
 
     def search_data(self):
         """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
-    
+
         # ตรวจสอบว่ามีการแก้ไขที่ยังไม่ได้บันทึกหรือไม่
         if self.edited_items:
             reply = QMessageBox.question(
@@ -413,7 +426,7 @@ class EditDataScreen(QWidget):
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 QMessageBox.Cancel,
             )
-        
+
             if reply == QMessageBox.Save:
                 # บันทึกก่อนค้นหา
                 self.execute_save_edits()
@@ -516,7 +529,11 @@ class EditDataScreen(QWidget):
                     item = QTableWidgetItem(cell_value)
                     item.setTextAlignment(Qt.AlignCenter)
 
-                    if displayed_field_name in self.LOGICAL_PK_FIELDS:
+                    # แก้ไขส่วนนี้เพื่อรวมฟิลด์ที่ไม่สามารถแก้ไขได้
+                    if (
+                        displayed_field_name in self.LOGICAL_PK_FIELDS
+                        or displayed_field_name in self.NON_EDITABLE_FIELDS
+                    ):
                         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                         item.setBackground(QColor("#f0f0f0"))
                     else:
@@ -595,10 +612,11 @@ class EditDataScreen(QWidget):
                                 db_field_index
                             ]
 
-                            if db_field_name_for_edit in self.LOGICAL_PK_FIELDS:
-                                # print(
-                                #     f"Warning: Attempt to save edit for PK field {db_field_name_for_edit} in row {table_row_idx}. Skipping this change."
-                                # )
+                            # ป้องกันการบันทึกฟิลด์ที่ไม่สามารถแก้ไขได้
+                            if (
+                                db_field_name_for_edit in self.LOGICAL_PK_FIELDS
+                                or db_field_name_for_edit in self.NON_EDITABLE_FIELDS
+                            ):
                                 continue
 
                             data_for_this_row_dict[db_field_name_for_edit] = (

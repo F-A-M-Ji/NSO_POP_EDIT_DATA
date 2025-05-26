@@ -160,9 +160,27 @@ class EditDataScreen(QWidget):
         results_title.setObjectName("sectionTitle")
         results_layout.addWidget(results_title)
 
+        # เพิ่มพื้นที่แสดงสถานะการแก้ไข
+        status_layout = QHBoxLayout()
+    
+        self.edit_status_label = QLabel("ไม่มีการแก้ไข")
+        self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
+        status_layout.addWidget(self.edit_status_label)
+    
+        status_layout.addStretch()
+
         self.results_table = QTableWidget()
         self.setup_results_table()
         results_layout.addWidget(self.results_table)
+
+        self.reset_edits_button = QPushButton("ยกเลิกการแก้ไข")
+        self.reset_edits_button.setObjectName("secondaryButton")
+        self.reset_edits_button.setCursor(Qt.PointingHandCursor)
+        self.reset_edits_button.clicked.connect(self.reset_all_edits)
+        self.reset_edits_button.setVisible(False)  # ซ่อนไว้ก่อน
+        # status_layout.addWidget(self.reset_edits_button)
+    
+        results_layout.addLayout(status_layout)
 
         self.save_edits_button = QPushButton("บันทึกการแก้ไข")
         self.save_edits_button.setObjectName("primaryButton")
@@ -173,6 +191,7 @@ class EditDataScreen(QWidget):
 
         buttons_under_table_layout = QHBoxLayout()
         buttons_under_table_layout.addStretch()
+        buttons_under_table_layout.addWidget(self.reset_edits_button)
         buttons_under_table_layout.addWidget(self.save_edits_button)
         results_layout.addLayout(buttons_under_table_layout)
 
@@ -247,22 +266,79 @@ class EditDataScreen(QWidget):
         self.header.updateGeometries()
         self.results_table.updateGeometries()
 
-    def update_save_button_state(self):
-        """อัปเดตสถานะปุ่มบันทึก - เปิดใช้งานเมื่อมีการแก้ไข ปิดใช้งานเมื่อไม่มี"""
-        has_edits = bool(self.edited_items)
-        self.save_edits_button.setEnabled(has_edits)
+    def reset_all_edits(self):
+        """ยกเลิกการแก้ไขทั้งหมดและคืนค่าเดิม"""
+        if not self.edited_items:
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "ยกเลิกการแก้ไข",
+            f"คุณต้องการยกเลิกการแก้ไขทั้งหมด {len(self.edited_items)} รายการหรือไม่?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+    
+        if reply == QMessageBox.Yes:
+            # คืนค่าเดิมให้กับทุก cell ที่ถูกแก้ไข
+            displayed_db_fields = self.column_mapper.get_fields_to_show()
+        
+            for (row, visual_col) in list(self.edited_items.keys()):
+                item = self.results_table.item(row, visual_col)
+                if item and row < len(self.original_data_cache):
+                    db_field_col_idx = visual_col - 1
+                    if 0 <= db_field_col_idx < len(displayed_db_fields):
+                        db_field_name = displayed_db_fields[db_field_col_idx]
+                        original_value = self.original_data_cache[row].get(db_field_name)
+                        original_text = str(original_value) if original_value is not None else ""
+                        item.setText(original_text)
+                        item.setBackground(QBrush())  # คืนสีพื้นหลัง
+        
+            # ล้างการแก้ไขทั้งหมด
+            self.edited_items.clear()
+            self.update_save_button_state()
 
-        # Force stylesheet update
+    def update_save_button_state(self):
+        """อัปเดตสถานะปุ่มบันทึก และแสดงข้อมูลการแก้ไขปัจจุบัน"""
+        has_edits = bool(self.edited_items)
+        edit_count = len(self.edited_items)
+    
+        # อัปเดตสถานะปุ่มบันทึก
+        self.save_edits_button.setEnabled(has_edits)
+    
+        # อัปเดตข้อความบนปุ่ม
+        if has_edits:
+            self.save_edits_button.setText(f"บันทึกการแก้ไข ({edit_count})")
+        else:
+            self.save_edits_button.setText("บันทึกการแก้ไข")
+    
+        # อัปเดตสถานะการแก้ไข
+        if hasattr(self, 'edit_status_label'):
+            if has_edits:
+                self.edit_status_label.setText(f"มีการแก้ไข {edit_count} รายการ")
+                self.edit_status_label.setStyleSheet("color: #FF9800; font-style: italic; font-weight: bold;")
+            else:
+                self.edit_status_label.setText("ไม่มีการแก้ไข")
+                self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
+    
+        # แสดง/ซ่อนปุ่มรีเซ็ต
+        if hasattr(self, 'reset_edits_button'):
+            self.reset_edits_button.setVisible(has_edits)
+    
+        # Force style update
         self.save_edits_button.style().unpolish(self.save_edits_button)
         self.save_edits_button.style().polish(self.save_edits_button)
         self.save_edits_button.update()
-        
+
     def handle_item_changed(self, item: QTableWidgetItem):
+        """ตรวจสอบและจัดการการเปลี่ยนแปลงข้อมูลในตารางแบบเรียลไทม์"""
         if not item or not self.original_data_cache:
             return
 
         row = item.row()
         visual_col = item.column()
+    
+        # ข้ามคอลัมน์ลำดับ
         if visual_col == 0:
             return
 
@@ -275,35 +351,79 @@ class EditDataScreen(QWidget):
         displayed_db_fields = self.column_mapper.get_fields_to_show()
 
         if db_field_col_idx >= len(displayed_db_fields) or db_field_col_idx < 0:
-            print(
-                f"Warning: Column index {db_field_col_idx} for DB fields is out of bounds."
-            )
+            # print(f"Warning: Column index {db_field_col_idx} for DB fields is out of bounds.")
             return
 
         db_field_name_for_column = displayed_db_fields[db_field_col_idx]
 
+        # ป้องกันการแก้ไข Primary Key fields
         if db_field_name_for_column in self.LOGICAL_PK_FIELDS:
             original_value = original_row_dict.get(db_field_name_for_column)
             item.setText(str(original_value) if original_value is not None else "")
             return
 
-        new_text = item.text()
+        # ดึงข้อมูลใหม่และเดิม
+        new_text = item.text().strip()  # เพิ่ม strip() เพื่อลบช่องว่าง
         original_value = original_row_dict.get(db_field_name_for_column)
-        original_value_str = str(original_value) if original_value is not None else ""
-        new_text_processed = new_text if new_text is not None else ""
-
-        if original_value_str != new_text_processed:
-            self.edited_items[(row, visual_col)] = new_text_processed
-            item.setBackground(QColor("lightyellow"))
+    
+        # แปลงข้อมูลเดิมเป็น string เพื่อเปรียบเทียบ
+        if original_value is None:
+            original_value_str = ""
+        elif isinstance(original_value, (int, float)):
+            # จัดการตัวเลข
+            if float(original_value).is_integer():
+                original_value_str = str(int(original_value))
+            else:
+                original_value_str = str(original_value)
         else:
+            original_value_str = str(original_value).strip()
+
+        # เปรียบเทียบข้อมูล
+        is_changed = original_value_str != new_text
+    
+        if is_changed:
+            # มีการเปลี่ยนแปลง - เพิ่มลงใน edited_items และเปลี่ยนสีพื้นหลัง
+            self.edited_items[(row, visual_col)] = new_text
+            item.setBackground(QColor("lightyellow"))
+            # print(f"Changed: Row {row}, Col {visual_col}, Field: {db_field_name_for_column}")
+            # print(f"  Original: '{original_value_str}' -> New: '{new_text}'")
+        else:
+            # ไม่มีการเปลี่ยนแปลง หรือเปลี่ยนกลับเป็นค่าเดิม - ลบออกจาก edited_items
             if (row, visual_col) in self.edited_items:
                 del self.edited_items[(row, visual_col)]
-            item.setBackground(QBrush())
+            item.setBackground(QBrush())  # คืนสีพื้นหลังปกติ
+            # print(f"Reverted: Row {row}, Col {visual_col}, Field: {db_field_name_for_column}")
 
-        # อัปเดตสถานะปุ่มหลังจากมีการเปลี่ยนแปลง
+        # อัปเดตสถานะปุ่มทันทีหลังจากการเปลี่ยนแปลง
         self.update_save_button_state()
+    
+        # แสดงจำนวนการแก้ไขปัจจุบัน (สำหรับ debug)
+        # print(f"Total edits: {len(self.edited_items)}")
 
     def search_data(self):
+        """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
+    
+        # ตรวจสอบว่ามีการแก้ไขที่ยังไม่ได้บันทึกหรือไม่
+        if self.edited_items:
+            reply = QMessageBox.question(
+                self,
+                "การเปลี่ยนแปลงที่ยังไม่ได้บันทึก",
+                f"คุณมีการแก้ไข {len(self.edited_items)} รายการที่ยังไม่ได้บันทึก "
+                "ต้องการบันทึกก่อนค้นหาใหม่หรือไม่?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+        
+            if reply == QMessageBox.Save:
+                # บันทึกก่อนค้นหา
+                self.execute_save_edits()
+                if self.edited_items:  # ถ้ายังมีการแก้ไขอยู่ แสดงว่าบันทึกไม่สำเร็จ
+                    return
+            elif reply == QMessageBox.Cancel:
+                # ยกเลิกการค้นหา
+                return
+            # ถ้าเลือก Discard จะดำเนินการค้นหาต่อไป
+
         if not self._all_db_fields_r_alldata:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
             if not self._all_db_fields_r_alldata:

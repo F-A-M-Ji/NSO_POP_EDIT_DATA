@@ -41,66 +41,16 @@ class FilterDropdown(QWidget):
         self.adjustSize()
 
     def setup_ui(self):
-        self.setStyleSheet(
-            """
-            FilterDropdown { /* Changed QWidget to FilterDropdown for specific targeting */
-                background-color: white;
-                border: none; /* Removed the border */
-                border-radius: 6px; /* Keep for rounded background */
-                padding: 1px; /* Prevents content from touching edge if background is rounded */
-            }
-            QLineEdit {
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
-                border-color: #2196F3;
-            }
-            QCheckBox {
-                font-size: 12px;
-                color: #333;
-                padding: 4px;
-            }
-            QPushButton {
-                padding: 6px 12px;
-                border-radius: 4px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton#clearBtn {
-                background-color: #f5f5f5;
-                border: 1px solid #ddd;
-                color: #666;
-            }
-            QPushButton#clearBtn:hover {
-                background-color: #e0e0e0;
-            }
-            QPushButton#applyBtn {
-                background-color: #2196F3;
-                border: none;
-                color: white;
-            }
-            QPushButton#applyBtn:hover {
-                background-color: #1976D2;
-            }
-            QLabel#filterLabel {
-                font-size: 12px;
-                font-weight: bold;
-                color: #333;
-                border: none; /* Ensure label has no border if QWidget style was too general */
-            }
-        """
-        )
+        
+        
         self.setObjectName(
             "FilterDropdown"
         )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(
-            12, 12, 12, 12
-        )
+        # layout.setContentsMargins(
+        #     12, 12, 12, 12
+        # )
         layout.setSpacing(10)
 
         # ช่องค้นหา
@@ -247,6 +197,23 @@ class FilterableMultiLineHeaderView(QHeaderView):
         option.state = current_state
 
         self.style().drawControl(QStyle.CE_HeaderSection, option, painter, self)
+
+        # **เพิ่มการวาดเส้นแนวตั้งคั่นหัวข้อ**
+        painter.save()
+    
+        # วาดเส้นขอบขวา (เส้นแนวตั้งคั่น)
+        painter.setPen(QPen(QColor("#DEE2E6"), 1))  # สีเทาอ่อน ความหนา 1px
+        painter.drawLine(rect.topRight(), rect.bottomRight())
+    
+        # วาดเส้นขอบบน (ถ้าต้องการ)
+        # painter.setPen(QPen(QColor("#B0B0B0"), 1))
+        # painter.drawLine(rect.topLeft(), rect.topRight())
+    
+        # วาดเส้นขอบล่าง (เส้นแนวนอนคั่น)
+        # painter.setPen(QPen(QColor("#B0B0B0"), 1))
+        # painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+    
+        painter.restore()
 
         mainText = self.mainTexts.get(logicalIndex, "")
         subText = self.subTexts.get(logicalIndex, "")

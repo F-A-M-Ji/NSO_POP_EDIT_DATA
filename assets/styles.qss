@@ -1,131 +1,385 @@
+/* Global Settings */
 QMainWindow {
-    background-color: #f5f5f5;
+    background-color: #F4F6F8; /* สีพื้นหลังหลักของหน้าต่าง (เทาอ่อนมาก) */
 }
 
-QLabel {
+QWidget {
+    font-family: "Segoe UI";
+    font-size: 10pt;
     color: #333333;
 }
 
-QPushButton {
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-weight: bold;
-}
-
-QPushButton:hover {
-    background-color: #e0e0e0;
-}
-
-QPushButton#primaryButton {
-    background-color: #2196F3;
-    color: white;
-    min-width: 120px;
-}
-
-QPushButton#primaryButton:hover {
-    background-color: #1976D2;
-}
-
-QPushButton#primaryButton:disabled {
-    background-color: #9E9E9E;
-    color: #616161;
-    border: none;
-}
-
-QPushButton#primaryButton:disabled:hover {
-    background-color: #9E9E9E;
-    color: #616161;
-}
-
-QPushButton#secondaryButton {
-    background-color: #f5f5f5;
-    color: #2196F3;
-    border: 1px solid #2196F3;
-}
-
-QPushButton#secondaryButton:hover {
-    background-color: #e3f2fd;
-}
-
-QLineEdit {
-    padding: 8px;
-    border: 1px solid #bdbdbd;
-    border-radius: 4px;
-    background-color: white;
-}
-
-QLineEdit:focus {
-    border: 1px solid #2196F3;
-}
-
-QFrame#loginFrame, QFrame#contentFrame {
-    background-color: white;
-    border-radius: 8px;
-    padding: 20px;
-    border: 1px solid #e0e0e0;
+/* Labels */
+QLabel {
+    background-color: transparent;
+    padding: 2px;
 }
 
 QLabel#headerLabel {
-    font-size: 24px;
-    font-weight: bold;
-    color: #2196F3;
-    margin-bottom: 20px;
+    font-size: 20pt;
+    font-weight: 600;
+    color: #007AFF;
+    margin-bottom: 15px; /* ลดลง */
+    margin-top: 8px;    /* ลดลง */
 }
 
 QLabel#formTitle {
-    font-size: 18px;
-    font-weight: bold;
-    color: #333333;
-    margin-bottom: 10px;
+    font-size: 14pt;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 15px;
 }
 
-QLabel#placeholderText {
-    font-size: 16px;
-    color: #757575;
+QLabel#sectionTitle {
+    font-size: 12pt;
+    font-weight: 600;
+    color: #34495e;
+    margin-bottom: 10px;
+    padding-top: 5px;
+}
+
+QLabel#userFullnameLabel { /* สไตล์สำหรับชื่อผู้ใช้ใน EditDataScreen */
+    font-weight: bold;
+    color: #007AFF; /* เปลี่ยนจาก #2196F3 ให้สอดคล้องกับธีมใหม่ */
+    margin-right: 8px; /* ปรับ margin เล็กน้อย */
+    font-size: 9pt;
+}
+
+QLabel#headerSeparator { /* สไตล์สำหรับตัวคั่น "|" ใน EditDataScreen */
+    color: #BDBDBD; /* สีเดิม */
+    margin-left: 5px;
+    margin-right: 5px;
+    font-weight: normal; /* ไม่หนา */
+}
+
+QLabel#editStatusLabel { /* สไตล์เริ่มต้นสำหรับสถานะการแก้ไขใน EditDataScreen */
     font-style: italic;
+    color: #555555; /* สีเทาเข้มสำหรับสถานะปกติ */
+    padding: 4px 0;
+    /* หมายเหตุ: การเปลี่ยนสีเมื่อมีรายการแก้ไข จะยังคงทำในโค้ด Python */
+}
+
+/* Input Fields: QLineEdit, QComboBox */
+QLineEdit, QComboBox {
+    padding: 7px 10px; /* ลด padding ลงเล็กน้อย */
+    border: 1px solid #CED4DA;
+    border-radius: 6px;
+    background-color: white;
+    color: #495057;
+    min-height: 22px;
+}
+
+QLineEdit:focus, QComboBox:focus {
+    border-color: #007AFF;
+}
+
+QLineEdit[echoMode="2"], /* QLineEdit.Password */
+QLineEdit[readOnly="true"] {
+    /* สไตล์เพิ่มเติมสำหรับ password fields หรือ read-only fields ถ้าต้องการ */
+}
+
+QLineEdit:disabled, QComboBox:disabled {
+    background-color: #E9ECEF;
+    color: #6C757D;
+    border-color: #DEE2E6;
+}
+
+QComboBox {
+    selection-background-color: #007AFF;
+    selection-color: white;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 22px;
+    border-left-width: 1px;
+    border-left-color: #CED4DA;
+    border-left-style: solid;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+QComboBox::down-arrow {
+    /* image: url(assets/icons/chevron-down.svg); หากมีไอคอน */
+    width: 12px;
+    height: 12px;
+}
+
+QComboBox QAbstractItemView {
+    border: 1px solid #CED4DA;
+    background-color: white;
+    selection-background-color: #007AFF;
+    selection-color: white;
+    padding: 5px;
+    outline: 0px;
+    border-radius: 4px;
+}
+
+/* Buttons */
+QPushButton {
+    padding: 5px 13px; /* ปรับ padding ของปุ่มทั่วไป */
+    border-radius: 6px;
+    font-weight: 500;
+    color: #495057;
+    background-color: #F8F9FA;
+    border: 1px solid #DEE2E6;
+    min-height: 24px;
+}
+
+QPushButton:hover {
+    background-color: #E9ECEF;
+    border-color: #CED4DA;
+}
+
+QPushButton:pressed {
+    background-color: #DAE0E5;
+    border-color: #BFC6CD;
+}
+
+QPushButton:disabled {
+    background-color: #E9ECEF;
+    color: #ADB5BD;
+    border-color: #DEE2E6;
+}
+
+QPushButton#primaryButton {
+    padding: 5px 15px; /* ปรับ padding ของปุ่มหลัก/รอง */
+    background-color: #007AFF;
+    color: white;
+    border: none;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #0069D9;
+}
+
+QPushButton#primaryButton:pressed {
+    background-color: #0056B3;
+}
+
+QPushButton#primaryButton:disabled {
+    background-color: #A0C7FF;
+    color: #E6F2FF;
+    border: none;
+}
+
+QPushButton#secondaryButton {
+    padding: 5px 15px; /* ปรับ padding ของปุ่มหลัก/รอง */
+    background-color: white;
+    color: #007AFF;
+    border: 1px solid #007AFF;
+}
+
+QPushButton#secondaryButton:hover {
+    background-color: #E6F2FF;
+    color: #0056B3;
+    border-color: #0069D9;
+}
+
+QPushButton#secondaryButton:pressed {
+    background-color: #CCE4FF;
+    border-color: #0056B3;
+}
+
+/* Frames */
+QFrame#loginFrame, QFrame#contentFrame {
+    background-color: white;
+    border-radius: 10px;
+    padding: 20px; /* <--- ลดจาก 30px เป็น 20px หรือตามต้องการ */
+    /* border: 1px solid #DEE2E6; */ /* ถ้าต้องการเส้นขอบจางๆ */
+}
+
+QFrame#searchSection, QFrame#resultsSection {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    margin-bottom: 15px; /* <--- ลดจาก 15px หรือตามต้องการ */
+}
+QFrame#resultsSection {
+    margin-top: 15px; /* <--- ลดจาก 15px หรือตามต้องการ */
+}
+
+/* Table Styles */
+QTableWidget {
+    gridline-color: #E9ECEF;
+    background-color: white;
+    border: 1px solid #DEE2E6;
+    border-radius: 6px;
+    selection-background-color: #BDE0FE;
+    selection-color: #212529;
 }
 
 QHeaderView::section {
-    background-color: #EAEAEA;
-    border: 1px solid #D0D0D0;
-    padding: 4px;
-    font-weight: bold;
-    position: relative;
+    background-color: #F8F9FA;  /* สีพื้นหลังหัวตาราง - เทาอ่อนๆ ที่ดูสะอาดตา */
+    color: #495057;            /* สีข้อความหัวตาราง - เทาเข้มเกือบดำเพื่อความชัดเจน */
+    padding: 10px 8px;         /* ระยะห่างภายในหัวข้อ */
+    border: none;
+    border-bottom: 1px solid #DEE2E6;
+    font-weight: 600;         /* ตัวหนาปานกลาง (Semi-bold) */
+    min-height: 32px;         /* ความสูงขั้นต่ำของหัวข้อ */
 }
 
 QHeaderView::section:horizontal {
-    border-top: none;
-    border-left: none;
-    border-right: 1px solid #C0C0C0;
-    border-bottom: 1px solid #B0B0B0;
-    min-height: 25px;
+    border-right: 1px solid #DEE2E6;
 }
-
-QHeaderView::section:vertical {
-    background-color: #EAEAEA;
-    border-top: none;
-    border-left: none;
-    border-bottom: 1px solid #C0C0C0;
-    border-right: 1px solid #B0B0B0;
-    padding: 4px;
+QHeaderView::section:horizontal:last {
+    border-right: none;
 }
 
 QHeaderView::section:hover {
-    background-color: #f0f0f0;
+    background-color: #E9ECEF;
 }
 
-.filter-button {
-    background-color: #f0f0f0;
-    border: 1px solid #bdbdbd;
-    border-radius: 2px;
+/* CheckBox Styling */
+QCheckBox {
+    spacing: 8px;
+    color: #495057;
+    background-color: transparent;
 }
 
-.filter-button:hover {
-    background-color: #e0e0e0;
-    border-color: #999;
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1px solid #ADB5BD;
+    border-radius: 4px;
+    background-color: #FFFFFF;
 }
 
-.filter-button.active {
-    background-color: #2196F3;
-    border-color: #1976D2;
+QCheckBox::indicator:hover {
+    border-color: #007AFF;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #007AFF;
+    border-color: #007AFF;
+    /* image: url(assets/icons/check.svg); */
+}
+
+QCheckBox::indicator:disabled {
+    background-color: #E9ECEF;
+    border-color: #CED4DA;
+}
+
+QCheckBox::indicator:checked:disabled {
+    /* image: url(assets/icons/check-disabled.svg); */
+    background-color: #ADB5BD;
+    border-color: #ADB5BD;
+}
+
+/* ScrollBar Styling */
+QScrollBar:vertical {
+    border: none;
+    background: #F4F6F8;
+    width: 10px;
+    margin: 15px 0 15px 0;
+}
+QScrollBar::handle:vertical {
+    background: #ADB5BD;
+    min-height: 25px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #6C757D;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+    height: 15px;
+    subcontrol-origin: margin;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background: #F4F6F8;
+    height: 10px;
+    margin: 0 15px 0 15px;
+}
+QScrollBar::handle:horizontal {
+    background: #ADB5BD;
+    min-width: 25px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #6C757D;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    border: none;
+    background: none;
+    width: 15px;
+    subcontrol-origin: margin;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+
+/* FilterDropdown specific styles (popup for table header filters) */
+/* Assuming FilterDropdown has self.setObjectName("FilterDropdown") */
+QWidget#FilterDropdown { /* More specific selector using objectName */
+    background-color: white;
+    border: 1px solid #DEE2E6; /* ให้มีขอบบางๆ เพื่อแยก popup */
+    border-radius: 6px;
+    padding: 12px; /* Padding ภายใน popup */
+    /* Consider QGraphicsDropShadowEffect from Python for better shadow */
+}
+
+QWidget#FilterDropdown QLineEdit { /* Targeting QLineEdit specifically within FilterDropdown */
+    padding: 8px 10px;
+    border: 1px solid #CED4DA;
+    border-radius: 5px;
+    font-size: 9pt;
+}
+QWidget#FilterDropdown QLineEdit:focus {
+    border-color: #007AFF;
+}
+
+QWidget#FilterDropdown QCheckBox {
+    font-size: 9pt;
+    padding: 5px 0;
+}
+
+QWidget#FilterDropdown QPushButton {
+    padding: 7px 15px;
+    border-radius: 5px;
+    font-size: 9pt;
+}
+
+QWidget#FilterDropdown QPushButton#clearBtn {
+    background-color: #F8F9FA;
+    border: 1px solid #DEE2E6;
+    color: #495057;
+}
+QWidget#FilterDropdown QPushButton#clearBtn:hover {
+    background-color: #E9ECEF;
+}
+
+QWidget#FilterDropdown QPushButton#applyBtn {
+    background-color: #007AFF;
+    border: none;
+    color: white;
+}
+QWidget#FilterDropdown QPushButton#applyBtn:hover {
+    background-color: #0069D9;
+}
+
+QWidget#FilterDropdown QLabel#filterLabel {
+    font-size: 10pt;
+    font-weight: 600;
+    color: #34495e;
+    border: none;
+    margin-bottom: 5px;
+}
+
+/* Separator line within FilterDropdown */
+QWidget#FilterDropdown QFrame#filterSeparatorLine {
+    min-height: 1px;
+    max-height: 1px;
+    border: none;
+    border-top: 1px solid #E0E0E0; /* Visible line */
+    margin-top: 10px;  /* Space above the line */
+    margin-bottom: 10px; /* Space below the line, above buttons */
 }

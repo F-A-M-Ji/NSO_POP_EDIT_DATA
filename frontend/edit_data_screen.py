@@ -417,20 +417,20 @@ class EditDataScreen(QWidget):
         main_layout.setContentsMargins(20, 20, 20, 20)
 
         header_layout = QHBoxLayout()
-        header_label = QLabel("Edit Data")
+        header_label = QLabel("การแก้ไขข้อมูล สปค. 68")
         header_label.setObjectName("headerLabel")
         header_layout.addWidget(header_label)
         header_layout.addStretch()
         self.user_fullname_label = QLabel("User: N/A")
         self.user_fullname_label.setObjectName("userFullnameLabel")
-        self.user_fullname_label.setStyleSheet(
-            "font-weight: bold; color: #2196F3; margin-right: 5px;"
-        )
+        # self.user_fullname_label.setStyleSheet(
+        #     "font-weight: bold; color: #2196F3; margin-right: 5px;"
+        # )
         header_layout.addWidget(self.user_fullname_label)
         spacer = QLabel("|")
-        spacer.setStyleSheet("color: #bdbdbd; margin-left: 5px; margin-right: 5px;")
+        # spacer.setStyleSheet("color: #bdbdbd; margin-left: 5px; margin-right: 5px;")
         header_layout.addWidget(spacer)
-        logout_button = QPushButton("Logout")
+        logout_button = QPushButton("ออกจากระบบ")
         logout_button.setObjectName("secondaryButton")
         logout_button.setCursor(Qt.PointingHandCursor)
         logout_button.clicked.connect(self.logout)
@@ -520,7 +520,7 @@ class EditDataScreen(QWidget):
         status_layout = QHBoxLayout()
 
         self.edit_status_label = QLabel("ไม่มีการแก้ไข")
-        self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
+        # self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
         status_layout.addWidget(self.edit_status_label)
 
         status_layout.addStretch()
@@ -542,7 +542,7 @@ class EditDataScreen(QWidget):
         self.save_edits_button.setObjectName("primaryButton")
         self.save_edits_button.setCursor(Qt.PointingHandCursor)
         self.save_edits_button.clicked.connect(self.prompt_save_edits)
-        self.save_edits_button.setFixedWidth(130)
+        # self.save_edits_button.setFixedWidth(130)
         self.save_edits_button.setEnabled(False)
 
         buttons_under_table_layout = QHBoxLayout()
@@ -686,18 +686,19 @@ class EditDataScreen(QWidget):
                 )
             else:
                 self.edit_status_label.setText("ไม่มีการแก้ไข")
-                self.edit_status_label.setStyleSheet(
-                    "color: #666666; font-style: italic;"
-                )
+                # self.edit_status_label.setStyleSheet(
+                #     "color: #666666; font-style: italic;"
+                # )
+                self.edit_status_label.setStyleSheet("")
 
         # แสดง/ซ่อนปุ่มรีเซ็ต
         if hasattr(self, "reset_edits_button"):
             self.reset_edits_button.setVisible(has_edits)
 
         # Force style update
-        self.save_edits_button.style().unpolish(self.save_edits_button)
-        self.save_edits_button.style().polish(self.save_edits_button)
-        self.save_edits_button.update()
+        # self.save_edits_button.style().unpolish(self.save_edits_button)
+        # self.save_edits_button.style().polish(self.save_edits_button)
+        # self.save_edits_button.update()
 
     def handle_item_changed(self, item: QTableWidgetItem):
         """ตรวจสอบและจัดการการเปลี่ยนแปลงข้อมูลในตารางแบบเรียลไทม์"""

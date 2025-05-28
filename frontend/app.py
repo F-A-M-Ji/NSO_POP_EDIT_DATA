@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QStackedWidget
+from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QMessageBox
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 import os
@@ -19,7 +19,7 @@ class MainApp(QMainWindow):
 
     def setup_ui(self):
         self.setWindowTitle("การแก้ไขข้อมูล สปค. 68")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1024, 768)
 
         self.load_stylesheet()
 
@@ -31,7 +31,7 @@ class MainApp(QMainWindow):
         self.reset_password_screen = ResetPasswordScreen(self)
         self.edit_data_screen = EditDataScreen(self)
         self.change_password_screen = ChangePasswordScreen(self)
-    
+
         self.stacked_widget.addWidget(self.login_screen)
         self.stacked_widget.addWidget(self.admin_menu_screen)
         self.stacked_widget.addWidget(self.add_user_screen)
@@ -55,7 +55,7 @@ class MainApp(QMainWindow):
             "styles.qss",
         )
         try:
-            with open(stylesheet_path, "r") as f:
+            with open(stylesheet_path, "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())
         except FileNotFoundError:
             print("Stylesheet not found. Using default style.")

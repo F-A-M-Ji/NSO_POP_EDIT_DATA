@@ -360,7 +360,9 @@ class EditDataScreen(QWidget):
 
         self.db_column_names = []
         self.original_data_cache = []
+        self.filtered_data_cache = []  # เพิ่มสำหรับเก็บข้อมูลที่ถูกฟิลเตอร์
         self.edited_items = {}
+        self.active_filters = {}  # เพิ่มสำหรับเก็บฟิลเตอร์
 
         self._all_db_fields_r_alldata = []
 
@@ -565,7 +567,12 @@ class EditDataScreen(QWidget):
         self.results_table.setShowGrid(True)
         self.results_table.setGridStyle(Qt.SolidLine)
         self.results_table.verticalHeader().setVisible(False)
-        self.header = MultiLineHeaderView(Qt.Horizontal, self.results_table)
+    
+        # ใช้ FilterableMultiLineHeaderView แทน MultiLineHeaderView
+        from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
+        self.header = FilterableMultiLineHeaderView(Qt.Horizontal, self.results_table)
+        self.header.filter_requested.connect(self.apply_table_filter)
+        self.header.filter_cleared.connect(self.clear_table_filter)
         self.results_table.setHorizontalHeader(self.header)
 
     def setup_table_headers_text_and_widths(self):
@@ -706,10 +713,36 @@ class EditDataScreen(QWidget):
 
         db_field_col_idx = visual_col - 1
 
-        if row >= len(self.original_data_cache):
-            return
+        # **สำคัญ: จัดการกรณีที่มีการกรองข้อมูล**
+        if hasattr(self, 'filtered_data_cache') and self.filtered_data_cache and row < len(self.filtered_data_cache):
+            # หา index ของข้อมูลนี้ใน original_data_cache
+            filtered_row_data = self.filtered_data_cache[row]
+            original_row_idx = -1
+        
+            # ค้นหาใน original_data_cache โดยใช้ Primary Key
+            for i, original_row in enumerate(self.original_data_cache):
+                # เปรียบเทียบ Primary Key
+                is_same_row = True
+                for pk_field in self.LOGICAL_PK_FIELDS:
+                    if original_row.get(pk_field) != filtered_row_data.get(pk_field):
+                        is_same_row = False
+                        break
+            
+                if is_same_row:
+                    original_row_idx = i
+                    break
+        
+            if original_row_idx == -1:
+                return
+            
+            # ใช้ original row index แทน filtered row index
+            original_row_dict = self.original_data_cache[original_row_idx]
+        else:
+            if row >= len(self.original_data_cache):
+                return
+            original_row_dict = self.original_data_cache[row]
+            original_row_idx = row
 
-        original_row_dict = self.original_data_cache[row]
         displayed_db_fields = self.column_mapper.get_fields_to_show()
 
         if db_field_col_idx >= len(displayed_db_fields) or db_field_col_idx < 0:
@@ -727,14 +760,13 @@ class EditDataScreen(QWidget):
             return
 
         # ดึงข้อมูลใหม่และเดิม
-        new_text = item.text().strip()  # เพิ่ม strip() เพื่อลบช่องว่าง
+        new_text = item.text().strip()
         original_value = original_row_dict.get(db_field_name_for_column)
 
         # แปลงข้อมูลเดิมเป็น string เพื่อเปรียบเทียบ
         if original_value is None:
             original_value_str = ""
         elif isinstance(original_value, (int, float)):
-            # จัดการตัวเลข
             if float(original_value).is_integer():
                 original_value_str = str(int(original_value))
             else:
@@ -745,21 +777,22 @@ class EditDataScreen(QWidget):
         # เปรียบเทียบข้อมูล
         is_changed = original_value_str != new_text
 
+        # **สำคัญ: ใช้ original_row_idx สำหรับ edited_items key**
+        edit_key = (original_row_idx, visual_col)
+
         if is_changed:
             # มีการเปลี่ยนแปลง - เพิ่มลงใน edited_items และเปลี่ยนสีพื้นหลัง
-            self.edited_items[(row, visual_col)] = new_text
+            self.edited_items[edit_key] = new_text
             item.setBackground(QColor("lightyellow"))
         else:
             # ไม่มีการเปลี่ยนแปลง หรือเปลี่ยนกลับเป็นค่าเดิม - ลบออกจาก edited_items
-            if (row, visual_col) in self.edited_items:
-                del self.edited_items[(row, visual_col)]
-            item.setBackground(QBrush())  # คืนสีพื้นหลังปกติ
+            if edit_key in self.edited_items:
+                del self.edited_items[edit_key]
+            item.setBackground(QBrush())
 
         # อัปเดตสถานะปุ่มทันทีหลังจากการเปลี่ยนแปลง
         self.update_save_button_state()
 
-        # แสดงจำนวนการแก้ไขปัจจุบัน (สำหรับ debug)
-        # print(f"Total edits: {len(self.edited_items)}")
 
     def search_data(self):
         """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
@@ -839,12 +872,23 @@ class EditDataScreen(QWidget):
 
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
+    
+        # **สำคัญ: ล้างข้อมูลที่เกี่ยวข้องกับฟิลเตอร์**
+        if hasattr(self, 'filtered_data_cache'):
+            self.filtered_data_cache.clear()
+        if hasattr(self, 'active_filters'):
+            self.active_filters.clear()
+    
+        # ล้างฟิลเตอร์ใน header ถ้ามี
+        if hasattr(self, 'header') and hasattr(self.header, 'clear_all_filters'):
+            self.header.clear_all_filters()
+    
         self.edited_items.clear()
-        # self.save_edits_button.setEnabled(False)
         self.update_save_button_state()
 
         if not results_tuples:
             if self.results_table.columnCount() > 0:
+                from frontend.utils.error_message import show_info_message
                 show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
             self.results_table.setRowCount(len(results_tuples))
@@ -877,7 +921,6 @@ class EditDataScreen(QWidget):
                     item = QTableWidgetItem(cell_value)
                     item.setTextAlignment(Qt.AlignCenter)
 
-                    # แก้ไขส่วนนี้เพื่อรวมฟิลด์ที่ไม่สามารถแก้ไขได้
                     if (
                         displayed_field_name in self.LOGICAL_PK_FIELDS
                         or displayed_field_name in self.NON_EDITABLE_FIELDS
@@ -890,6 +933,7 @@ class EditDataScreen(QWidget):
 
         self.results_table.itemChanged.connect(self.handle_item_changed)
         self.results_table.setUpdatesEnabled(True)
+
 
     def prompt_save_edits(self):
         if self.results_table.state() == QAbstractItemView.EditingState:
@@ -1048,8 +1092,15 @@ class EditDataScreen(QWidget):
         self.results_table.itemChanged.connect(self.handle_item_changed)
 
         self.original_data_cache.clear()
+        self.filtered_data_cache.clear()
         self.db_column_names = []
         self.edited_items.clear()
+        self.active_filters.clear()  # ล้างฟิลเตอร์
+    
+        # ล้างฟิลเตอร์ใน header
+        if hasattr(self, 'header'):
+            self.header.clear_all_filters()
+        
         self.update_save_button_state()
 
         if hasattr(self, "user_fullname_label"):
@@ -1066,8 +1117,15 @@ class EditDataScreen(QWidget):
         self.results_table.itemChanged.connect(self.handle_item_changed)
 
         self.original_data_cache.clear()
+        self.filtered_data_cache.clear()
         self.db_column_names = []
         self.edited_items.clear()
+        self.active_filters.clear()  # ล้างฟิลเตอร์
+    
+        # ล้างฟิลเตอร์ใน header
+        if hasattr(self, 'header'):
+            self.header.clear_all_filters()
+        
         self.update_save_button_state()
 
     def logout(self):
@@ -1565,3 +1623,169 @@ class EditDataScreen(QWidget):
             validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
 
         return validation_data
+    
+    # เพิ่ม methods สำหรับจัดการฟิลเตอร์
+    def apply_table_filter(self, column, text, show_blank_only):
+        """ใช้ฟิลเตอร์กับตาราง"""
+        if not self.original_data_cache:
+            return
+    
+        # บันทึกฟิลเตอร์
+        if text or show_blank_only:
+            self.active_filters[column] = {
+                'text': text.lower(),
+                'show_blank': show_blank_only
+            }
+        else:
+            if column in self.active_filters:
+                del self.active_filters[column]
+    
+        # กรองข้อมูล
+        self.filter_table_data()
+
+    def clear_table_filter(self, column):
+        """ล้างฟิลเตอร์ของคอลัมน์"""
+        if column in self.active_filters:
+            del self.active_filters[column]
+    
+        # กรองข้อมูลใหม่
+        self.filter_table_data()
+
+    def filter_table_data(self):
+        """กรองข้อมูลในตารางตามฟิลเตอร์ที่ใช้งานอยู่"""
+        if not self.original_data_cache:
+            return
+    
+        displayed_fields = self.column_mapper.get_fields_to_show()
+        filtered_data = []
+    
+        for row_data in self.original_data_cache:
+            should_include = True
+        
+            # ตรวจสอบทุกฟิลเตอร์
+            for column, filter_info in self.active_filters.items():
+                if column == 0:  # ข้ามคอลัมน์ลำดับ
+                    continue
+            
+                # คำนวณ field index (ลบ 1 เพราะคอลัมน์ 0 คือลำดับ)
+                field_index = column - 1
+                if field_index >= len(displayed_fields):
+                    continue
+            
+                field_name = displayed_fields[field_index]
+                field_value = row_data.get(field_name)
+            
+                # แปลงค่าเป็น string สำหรับการเปรียบเทียบ
+                if field_value is None:
+                    value_str = ""
+                else:
+                    value_str = str(field_value).strip()
+            
+                # ตรวจสอบเงื่อนไข show_blank
+                if filter_info.get('show_blank', False):
+                    if value_str != "":  # ถ้าไม่ใช่ค่าว่าง ให้ข้าม
+                        should_include = False
+                        break
+            
+                # ตรวจสอบเงื่อนไขข้อความ
+                filter_text = filter_info.get('text', '').strip()
+                if filter_text:
+                    if filter_text.lower() not in value_str.lower():
+                        should_include = False
+                        break
+        
+            if should_include:
+                filtered_data.append(row_data)
+    
+        # อัปเดตตาราง
+        self.display_filtered_results(filtered_data)
+
+    def display_filtered_results(self, filtered_data):
+        """แสดงผลข้อมูลที่ถูกฟิลเตอร์"""
+        # **สำคัญ: ปิด itemChanged signal ก่อนอัปเดตตาราง**
+        self.results_table.setUpdatesEnabled(False)
+        try:
+            self.results_table.itemChanged.disconnect(self.handle_item_changed)
+        except TypeError:
+            pass  # ถ้าไม่มี connection อยู่แล้ว
+
+        # เก็บ edited_items ที่มีอยู่ไว้ก่อน
+        existing_edits = self.edited_items.copy()
+    
+        # ตั้งค่าหัวตาราง
+        self.setup_table_headers_text_and_widths()
+
+        # ล้างตารางเก่า
+        self.results_table.setRowCount(0)
+    
+        # เก็บข้อมูลที่กรองแล้ว
+        self.filtered_data_cache = filtered_data
+    
+        if not filtered_data:
+            from frontend.utils.error_message import show_info_message
+            show_info_message(self, "ผลการกรอง", "ไม่พบข้อมูลที่ตรงกับเงื่อนไขการกรอง")
+        else:
+            self.results_table.setRowCount(len(filtered_data))
+            displayed_db_fields_in_table = self.column_mapper.get_fields_to_show()
+
+            for row_idx, row_data in enumerate(filtered_data):
+                # สร้าง item ลำดับ
+                sequence_text = str(row_idx + 1)
+                sequence_item = QTableWidgetItem(sequence_text)
+                sequence_item.setTextAlignment(Qt.AlignCenter)
+                flags = sequence_item.flags()
+                sequence_item.setFlags(flags & ~Qt.ItemIsEditable)
+                sequence_item.setBackground(QColor("#f0f0f0"))
+                self.results_table.setItem(row_idx, 0, sequence_item)
+
+                # หา index ของข้อมูลนี้ใน original_data_cache
+                original_row_index = -1
+                for orig_idx, orig_data in enumerate(self.original_data_cache):
+                    # เปรียบเทียบ Primary Key เพื่อหา original index
+                    is_same_row = True
+                    for pk_field in self.LOGICAL_PK_FIELDS:
+                        if orig_data.get(pk_field) != row_data.get(pk_field):
+                            is_same_row = False
+                            break
+                
+                    if is_same_row:
+                        original_row_index = orig_idx
+                        break
+
+                # สร้าง items สำหรับแต่ละคอลัมน์
+                for db_field_idx, displayed_field_name in enumerate(displayed_db_fields_in_table):
+                    visual_col_idx_table = db_field_idx + 1
+
+                    cell_value = ""
+                    if displayed_field_name in row_data:
+                        raw_value = row_data[displayed_field_name]
+                        cell_value = str(raw_value) if raw_value is not None else ""
+
+                    item = QTableWidgetItem(cell_value)
+                    item.setTextAlignment(Qt.AlignCenter)
+
+                    # ตั้งค่าการแก้ไขได้หรือไม่
+                    if (displayed_field_name in self.LOGICAL_PK_FIELDS or 
+                        displayed_field_name in self.NON_EDITABLE_FIELDS):
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                        item.setBackground(QColor("#f0f0f0"))
+                    else:
+                        item.setFlags(item.flags() | Qt.ItemIsEditable)
+                
+                    # **สำคัญ: ตรวจสอบว่ามีการแก้ไขในตำแหน่งนี้หรือไม่**
+                    if original_row_index != -1:
+                        edit_key = (original_row_index, visual_col_idx_table)
+                        if edit_key in existing_edits:
+                            # ถ้ามีการแก้ไขอยู่ ให้ใช้ข้อมูลที่แก้ไขแล้ว
+                            item.setText(existing_edits[edit_key])
+                            item.setBackground(QColor("lightyellow"))
+                        
+                            # อัปเดต edited_items ด้วย index ใหม่
+                            new_edit_key = (row_idx, visual_col_idx_table)
+                            self.edited_items[new_edit_key] = existing_edits[edit_key]
+                
+                    self.results_table.setItem(row_idx, visual_col_idx_table, item)
+
+        # **สำคัญ: เปิด itemChanged signal กลับมาหลังจากอัปเดตเสร็จ**
+        self.results_table.itemChanged.connect(self.handle_item_changed)
+        self.results_table.setUpdatesEnabled(True)

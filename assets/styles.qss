@@ -90,6 +90,7 @@ QHeaderView::section {
     border: 1px solid #D0D0D0;
     padding: 4px;
     font-weight: bold;
+    position: relative;
 }
 
 QHeaderView::section:horizontal {
@@ -97,6 +98,7 @@ QHeaderView::section:horizontal {
     border-left: none;
     border-right: 1px solid #C0C0C0;
     border-bottom: 1px solid #B0B0B0;
+    min-height: 25px;
 }
 
 QHeaderView::section:vertical {
@@ -106,4 +108,24 @@ QHeaderView::section:vertical {
     border-bottom: 1px solid #C0C0C0;
     border-right: 1px solid #B0B0B0;
     padding: 4px;
+}
+
+QHeaderView::section:hover {
+    background-color: #f0f0f0;
+}
+
+.filter-button {
+    background-color: #f0f0f0;
+    border: 1px solid #bdbdbd;
+    border-radius: 2px;
+}
+
+.filter-button:hover {
+    background-color: #e0e0e0;
+    border-color: #999;
+}
+
+.filter-button.active {
+    background-color: #2196F3;
+    border-color: #1976D2;
 }

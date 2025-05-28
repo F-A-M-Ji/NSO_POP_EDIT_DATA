@@ -417,7 +417,7 @@ class EditDataScreen(QWidget):
         main_layout.setContentsMargins(20, 20, 20, 20)
 
         header_layout = QHBoxLayout()
-        header_label = QLabel("การแก้ไขข้อมูล สปค. 68")
+        header_label = QLabel("ระบบแก้ไขข้อมูล สปค. 68")
         header_label.setObjectName("headerLabel")
         header_layout.addWidget(header_label)
         header_layout.addStretch()
@@ -567,7 +567,7 @@ class EditDataScreen(QWidget):
         self.results_table.setShowGrid(True)
         self.results_table.setGridStyle(Qt.SolidLine)
         self.results_table.verticalHeader().setVisible(False)
-    
+
         # ใช้ FilterableMultiLineHeaderView แทน MultiLineHeaderView
         from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
         self.header = FilterableMultiLineHeaderView(Qt.Horizontal, self.results_table)
@@ -715,11 +715,15 @@ class EditDataScreen(QWidget):
         db_field_col_idx = visual_col - 1
 
         # **สำคัญ: จัดการกรณีที่มีการกรองข้อมูล**
-        if hasattr(self, 'filtered_data_cache') and self.filtered_data_cache and row < len(self.filtered_data_cache):
+        if (
+            hasattr(self, "filtered_data_cache")
+            and self.filtered_data_cache
+            and row < len(self.filtered_data_cache)
+        ):
             # หา index ของข้อมูลนี้ใน original_data_cache
             filtered_row_data = self.filtered_data_cache[row]
             original_row_idx = -1
-        
+
             # ค้นหาใน original_data_cache โดยใช้ Primary Key
             for i, original_row in enumerate(self.original_data_cache):
                 # เปรียบเทียบ Primary Key
@@ -728,14 +732,14 @@ class EditDataScreen(QWidget):
                     if original_row.get(pk_field) != filtered_row_data.get(pk_field):
                         is_same_row = False
                         break
-            
+
                 if is_same_row:
                     original_row_idx = i
                     break
-        
+
             if original_row_idx == -1:
                 return
-            
+
             # ใช้ original row index แทน filtered row index
             original_row_dict = self.original_data_cache[original_row_idx]
         else:
@@ -793,7 +797,6 @@ class EditDataScreen(QWidget):
 
         # อัปเดตสถานะปุ่มทันทีหลังจากการเปลี่ยนแปลง
         self.update_save_button_state()
-
 
     def search_data(self):
         """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
@@ -873,23 +876,24 @@ class EditDataScreen(QWidget):
 
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
-    
+
         # **สำคัญ: ล้างข้อมูลที่เกี่ยวข้องกับฟิลเตอร์**
-        if hasattr(self, 'filtered_data_cache'):
+        if hasattr(self, "filtered_data_cache"):
             self.filtered_data_cache.clear()
-        if hasattr(self, 'active_filters'):
+        if hasattr(self, "active_filters"):
             self.active_filters.clear()
-    
+
         # ล้างฟิลเตอร์ใน header ถ้ามี
-        if hasattr(self, 'header') and hasattr(self.header, 'clear_all_filters'):
+        if hasattr(self, "header") and hasattr(self.header, "clear_all_filters"):
             self.header.clear_all_filters()
-    
+
         self.edited_items.clear()
         self.update_save_button_state()
 
         if not results_tuples:
             if self.results_table.columnCount() > 0:
                 from frontend.utils.error_message import show_info_message
+
                 show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
             self.results_table.setRowCount(len(results_tuples))
@@ -920,7 +924,11 @@ class EditDataScreen(QWidget):
                         cell_value = str(raw_value) if raw_value is not None else ""
 
                     item = QTableWidgetItem(cell_value)
-                    item.setTextAlignment(Qt.AlignCenter)
+                    # **แก้ไข: ปรับการจัดตำแหน่งตามชื่อฟิลด์**
+                    if displayed_field_name in ["FirstName", "LastName"]:
+                        item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # ชิดซ้าย
+                    else:
+                        item.setTextAlignment(Qt.AlignCenter)  # ตรงกลางเหมือนเดิม
 
                     if (
                         displayed_field_name in self.LOGICAL_PK_FIELDS
@@ -1097,11 +1105,11 @@ class EditDataScreen(QWidget):
         self.db_column_names = []
         self.edited_items.clear()
         self.active_filters.clear()  # ล้างฟิลเตอร์
-    
+
         # ล้างฟิลเตอร์ใน header
-        if hasattr(self, 'header'):
+        if hasattr(self, "header"):
             self.header.clear_all_filters()
-        
+
         self.update_save_button_state()
 
         if hasattr(self, "user_fullname_label"):
@@ -1122,11 +1130,11 @@ class EditDataScreen(QWidget):
         self.db_column_names = []
         self.edited_items.clear()
         self.active_filters.clear()  # ล้างฟิลเตอร์
-    
+
         # ล้างฟิลเตอร์ใน header
-        if hasattr(self, 'header'):
+        if hasattr(self, "header"):
             self.header.clear_all_filters()
-        
+
         self.update_save_button_state()
 
     def logout(self):
@@ -1624,23 +1632,23 @@ class EditDataScreen(QWidget):
             validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
 
         return validation_data
-    
+
     # เพิ่ม methods สำหรับจัดการฟิลเตอร์
     def apply_table_filter(self, column, text, show_blank_only):
         """ใช้ฟิลเตอร์กับตาราง"""
         if not self.original_data_cache:
             return
-    
+
         # บันทึกฟิลเตอร์
         if text or show_blank_only:
             self.active_filters[column] = {
-                'text': text.lower(),
-                'show_blank': show_blank_only
+                "text": text.lower(),
+                "show_blank": show_blank_only,
             }
         else:
             if column in self.active_filters:
                 del self.active_filters[column]
-    
+
         # กรองข้อมูล
         self.filter_table_data()
 
@@ -1648,7 +1656,7 @@ class EditDataScreen(QWidget):
         """ล้างฟิลเตอร์ของคอลัมน์"""
         if column in self.active_filters:
             del self.active_filters[column]
-    
+
         # กรองข้อมูลใหม่
         self.filter_table_data()
 
@@ -1656,48 +1664,48 @@ class EditDataScreen(QWidget):
         """กรองข้อมูลในตารางตามฟิลเตอร์ที่ใช้งานอยู่"""
         if not self.original_data_cache:
             return
-    
+
         displayed_fields = self.column_mapper.get_fields_to_show()
         filtered_data = []
-    
+
         for row_data in self.original_data_cache:
             should_include = True
-        
+
             # ตรวจสอบทุกฟิลเตอร์
             for column, filter_info in self.active_filters.items():
                 if column == 0:  # ข้ามคอลัมน์ลำดับ
                     continue
-            
+
                 # คำนวณ field index (ลบ 1 เพราะคอลัมน์ 0 คือลำดับ)
                 field_index = column - 1
                 if field_index >= len(displayed_fields):
                     continue
-            
+
                 field_name = displayed_fields[field_index]
                 field_value = row_data.get(field_name)
-            
+
                 # แปลงค่าเป็น string สำหรับการเปรียบเทียบ
                 if field_value is None:
                     value_str = ""
                 else:
                     value_str = str(field_value).strip()
-            
+
                 # ตรวจสอบเงื่อนไข show_blank
-                if filter_info.get('show_blank', False):
+                if filter_info.get("show_blank", False):
                     if value_str != "":  # ถ้าไม่ใช่ค่าว่าง ให้ข้าม
                         should_include = False
                         break
-            
+
                 # ตรวจสอบเงื่อนไขข้อความ
-                filter_text = filter_info.get('text', '').strip()
+                filter_text = filter_info.get("text", "").strip()
                 if filter_text:
                     if filter_text.lower() not in value_str.lower():
                         should_include = False
                         break
-        
+
             if should_include:
                 filtered_data.append(row_data)
-    
+
         # อัปเดตตาราง
         self.display_filtered_results(filtered_data)
 
@@ -1712,16 +1720,16 @@ class EditDataScreen(QWidget):
 
         # เก็บ edited_items ที่มีอยู่ไว้ก่อน
         existing_edits = self.edited_items.copy()
-    
+
         # ตั้งค่าหัวตาราง
         self.setup_table_headers_text_and_widths()
 
         # ล้างตารางเก่า
         self.results_table.setRowCount(0)
-    
+
         # เก็บข้อมูลที่กรองแล้ว
         self.filtered_data_cache = filtered_data
-    
+
         if not filtered_data:
             from frontend.utils.error_message import show_info_message
             show_info_message(self, "ผลการกรอง", "ไม่พบข้อมูลที่ตรงกับเงื่อนไขการกรอง")
@@ -1748,13 +1756,15 @@ class EditDataScreen(QWidget):
                         if orig_data.get(pk_field) != row_data.get(pk_field):
                             is_same_row = False
                             break
-                
+
                     if is_same_row:
                         original_row_index = orig_idx
                         break
 
                 # สร้าง items สำหรับแต่ละคอลัมน์
-                for db_field_idx, displayed_field_name in enumerate(displayed_db_fields_in_table):
+                for db_field_idx, displayed_field_name in enumerate(
+                    displayed_db_fields_in_table
+                ):
                     visual_col_idx_table = db_field_idx + 1
 
                     cell_value = ""
@@ -1763,16 +1773,22 @@ class EditDataScreen(QWidget):
                         cell_value = str(raw_value) if raw_value is not None else ""
 
                     item = QTableWidgetItem(cell_value)
-                    item.setTextAlignment(Qt.AlignCenter)
+                    # **แก้ไข: ปรับการจัดตำแหน่งตามชื่อฟิลด์**
+                    if displayed_field_name in ["FirstName", "LastName"]:
+                        item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # ชิดซ้าย
+                    else:
+                        item.setTextAlignment(Qt.AlignCenter)  # ตรงกลางเหมือนเดิม
 
                     # ตั้งค่าการแก้ไขได้หรือไม่
-                    if (displayed_field_name in self.LOGICAL_PK_FIELDS or 
-                        displayed_field_name in self.NON_EDITABLE_FIELDS):
+                    if (
+                        displayed_field_name in self.LOGICAL_PK_FIELDS
+                        or displayed_field_name in self.NON_EDITABLE_FIELDS
+                    ):
                         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                         item.setBackground(QColor("#f0f0f0"))
                     else:
                         item.setFlags(item.flags() | Qt.ItemIsEditable)
-                
+
                     # **สำคัญ: ตรวจสอบว่ามีการแก้ไขในตำแหน่งนี้หรือไม่**
                     if original_row_index != -1:
                         edit_key = (original_row_index, visual_col_idx_table)
@@ -1780,11 +1796,11 @@ class EditDataScreen(QWidget):
                             # ถ้ามีการแก้ไขอยู่ ให้ใช้ข้อมูลที่แก้ไขแล้ว
                             item.setText(existing_edits[edit_key])
                             item.setBackground(QColor("lightyellow"))
-                        
+
                             # อัปเดต edited_items ด้วย index ใหม่
                             new_edit_key = (row_idx, visual_col_idx_table)
                             self.edited_items[new_edit_key] = existing_edits[edit_key]
-                
+
                     self.results_table.setItem(row_idx, visual_col_idx_table, item)
 
         # **สำคัญ: เปิด itemChanged signal กลับมาหลังจากอัปเดตเสร็จ**

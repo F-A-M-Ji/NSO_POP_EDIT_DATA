@@ -34,8 +34,8 @@ QLabel#sectionTitle {
     font-size: 12pt;
     font-weight: 600;
     color: #34495e;
-    margin-bottom: 10px;
-    padding-top: 5px;
+    margin-bottom: 5px;
+    padding-top: 2px;
 }
 
 QLabel#userFullnameLabel { /* สไตล์สำหรับชื่อผู้ใช้ใน EditDataScreen */
@@ -193,8 +193,8 @@ QFrame#loginFrame, QFrame#contentFrame {
 QFrame#searchSection, QFrame#resultsSection {
     background-color: transparent;
     border: none;
-    padding: 0;
-    margin-bottom: 15px; /* <--- ลดจาก 15px หรือตามต้องการ */
+    padding: 5px;
+    margin-bottom: 5px; /* <--- ลดจาก 15px หรือตามต้องการ */
 }
 QFrame#resultsSection {
     margin-top: 15px; /* <--- ลดจาก 15px หรือตามต้องการ */

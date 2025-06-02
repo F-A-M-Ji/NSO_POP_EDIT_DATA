@@ -28,329 +28,41 @@ from backend.alldata_operations import (
     save_edited_r_alldata_rows,
 )
 from frontend.widgets.multi_line_header import MultiLineHeaderView
+from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
 from frontend.utils.error_message import show_error_message, show_info_message
 from frontend.utils.shadow_effect import add_shadow_effect
 from frontend.utils.resource_path import resource_path
+from frontend.data_rules.edit_data_rules import (
+    LOGICAL_PK_FIELDS_CONFIG,
+    NON_EDITABLE_FIELDS_CONFIG,
+    FIELD_VALIDATION_RULES_CONFIG,
+    update_rules_from_excel_data
+)
+from frontend.data_rules.edit_data_validation import (
+    validate_field_value,
+    _validate_excel_padded_number,
+    _validate_text,
+    _validate_options,
+    _validate_range,
+    _validate_custom,
+    _validate_int_range,
+    _validate_padded_number,
+    validate_edited_data,
+    show_validation_errors,
+    load_validation_data_from_excel,
+)
+from frontend.widgets.filters import (
+    apply_table_filter,
+    clear_table_filter,
+    filter_table_data,
+    display_filtered_results,
+)
 
 
 class EditDataScreen(QWidget):
-    LOGICAL_PK_FIELDS = ["EA_Code_15", "Building_No", "Household_No", "Population_No"]
-
-    NON_EDITABLE_FIELDS = ["FirstName", "LastName"]
-
-    # กำหนดกฎการตรวจสอบสำหรับแต่ละฟิลด์
-    FIELD_VALIDATION_RULES = {
-        "BuildingType": {
-            "type": "range",
-            "allowed_values": [f"{i:02d}" for i in range(1, 20)],  # 01-19
-            "allow_blank": False,
-            "description": "ต้องเป็น 01-19",
-        },
-        "BuildingTypeOther": {
-            "type": "text",
-            "max_length": 50,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 50 ตัวอักษร",
-        },
-        "Residing": {
-            "type": "options",
-            "allowed_values": ["1", "2"],
-            "allow_blank": False,
-            "description": "ต้องเป็น 1 หรือ 2",
-        },
-        "HouseholdEnumeration": {
-            "type": "custom",
-            "allowed_values": ["11", "12", "13", "20", "21", "22", "23"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 11-13 หรือ 20-23",
-        },
-        "HouseholdEnumerationOther": {
-            "type": "text",
-            "max_length": 255,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 255 ตัวอักษร",
-        },
-        "HouseholdType": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-3",
-        },
-        "NumberOfHousehold": {
-            "type": "int_range",
-            "min_value": 1,
-            "max_value": 99,
-            "allow_blank": True,
-            "description": "ต้องเป็นตัวเลข 1-99",
-        },
-        "TotalRoom": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 1,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0001-9999",
-        },
-        "RoomVacant": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 1,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0001-9999",
-        },
-        "RoomResidence": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 1,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0001-9999",
-        },
-        "Language": {
-            "type": "custom",
-            "allowed_values": ["1", "2", "3", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-3 หรือ 9",
-        },
-        # "LanguageOther": {
-        #     "type": "custom",
-        #     "allowed_values": [f"{i:02d}" for i in range(2, 81)] + ["99"],
-        #     "allow_blank": True,
-        #     "description": "ต้องเป็น 02-80 หรือ 99",
-        # },
-        "HouseholdNumber": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 1,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0001-9999",
-        },
-        "ConstructionMaterial": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3", "4", "5", "6"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-6",
-        },
-        "ConstructionMaterialOther": {
-            "type": "text",
-            "max_length": 50,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 50 ตัวอักษร",
-        },
-        "TenureResidence": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3", "4", "5", "6", "7"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-7",
-        },
-        "TenureResidenceOther": {
-            "type": "text",
-            "max_length": 30,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 30 ตัวอักษร",
-        },
-        "TenureLand": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3", "4", "5"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-5",
-        },
-        "TenureLandOther": {
-            "type": "text",
-            "max_length": 255,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 255 ตัวอักษร",
-        },
-        "NumberOfHousueholdMember": {
-            "type": "int_range",
-            "min_value": 1,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็นตัวเลข 1-9999",
-        },
-        "HouseholdMemberNumber": {
-            "type": "padded_number",
-            "length": 5,
-            "min_value": 1,
-            "max_value": 99998,
-            "allow_blank": True,
-            "description": "ต้องเป็น 00001-99998",
-        },
-        "Title": {
-            "type": "custom",
-            "allowed_values": ["01", "02", "03", "04", "05", "09"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 01-05 หรือ 09",
-        },
-        "TitleOther": {
-            "type": "text",
-            "max_length": 50,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 50 ตัวอักษร",
-        },
-        "Relationship": {
-            "type": "range",
-            "allowed_values": [f"{i:02d}" for i in range(0, 17)],  # 00-16
-            "allow_blank": True,
-            "description": "ต้องเป็น 00-16",
-        },
-        "Sex": {
-            "type": "options",
-            "allowed_values": ["1", "2"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1 หรือ 2",
-        },
-        "MonthOfBirth": {
-            "type": "custom",
-            "allowed_values": [f"{i:02d}" for i in range(1, 13)] + ["99"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 01-12 หรือ 99",
-        },
-        "YearOfBirth": {
-            "type": "custom",
-            "allowed_values": [str(i) for i in range(2419, 2569)] + ["9999"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 2419-2568 หรือ 9999",
-        },
-        "Age_01": {
-            "type": "padded_number",
-            "length": 3,
-            "min_value": 0,
-            "max_value": 150,
-            "allow_blank": True,
-            "description": "ต้องเป็น 000-150",
-        },
-        "Religion": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-9",
-        },
-        "ReligionOther": {
-            "type": "text",
-            "max_length": 50,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 50 ตัวอักษร",
-        },
-        # "NationalityNumeric": {
-        #     "type": "custom",
-        #     "allowed_values": [f"{i:03d}" for i in range(4, 910)]
-        #     + ["997", "998", "999"],
-        #     "allow_blank": True,
-        #     "description": "ต้องเป็น 004-909 หรือ 997-999",
-        # },
-        "MaritalStatus": {
-            "type": "custom",
-            "allowed_values": ["1", "2", "3", "4", "5", "6", "7", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-7 หรือ 9",
-        },
-        "EducationalAttainment": {
-            "type": "custom",
-            "allowed_values": [f"{i:02d}" for i in range(1, 13)] + ["98", "99"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 01-12 หรือ 98-99",
-        },
-        "EmploymentStatus": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-9",
-        },
-        "NameInHouseholdRegister": {
-            "type": "custom",
-            "allowed_values": ["1", "2", "3", "4", "5", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-5 หรือ 9",
-        },
-        "NameInHouseholdRegisterOther": {
-            "type": "text",
-            "max_length": 2,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 2 ตัวอักษร",
-        },
-        "DurationOfResidence": {
-            "type": "custom",
-            "allowed_values": ["0", "1", "2", "3", "4", "5", "6", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 0-6 หรือ 9",
-        },
-        "MigrationCharecteristics": {
-            "type": "custom",
-            "allowed_values": ["1", "2", "3", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-3 หรือ 9",
-        },
-        "MovedFromProvince": {
-            "type": "custom",
-            "allowed_values": (
-                ["10"]
-                + [str(i) for i in range(11, 20)]
-                + [str(i) for i in range(70, 78)]
-                + [str(i) for i in range(80, 87)]
-                + [str(i) for i in range(90, 97)]
-                + [str(i) for i in range(20, 28)]
-                + [str(i) for i in range(30, 50)]
-                + [str(i) for i in range(50, 59)]
-                + [str(i) for i in range(60, 68)]
-                + ["99"]
-            ),
-            "allow_blank": True,
-            "description": "ต้องเป็นรหัสจังหวัดที่กำหนด",
-        },
-        # "MovedFromAbroad": {
-        #     "type": "padded_number",
-        #     "length": 3,
-        #     "min_value": 0,
-        #     "max_value": 999,
-        #     "allow_blank": True,
-        #     "description": "ต้องเป็น 000-999",
-        # },
-        "MigrationReason": {
-            "type": "custom",
-            "allowed_values": ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-8 หรือ 9",
-        },
-        "MigrationReasonOther": {
-            "type": "text",
-            "max_length": 255,
-            "allow_blank": True,
-            "description": "ข้อความได้สูงสุด 255 ตัวอักษร",
-        },
-        "Gender": {
-            "type": "range",
-            "allowed_values": ["1", "2", "3", "4", "5"],
-            "allow_blank": True,
-            "description": "ต้องเป็น 1-5",
-        },
-        "TotalPopulation": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 1,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0001-9999",
-        },
-        "TotalMale": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 0,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0000-9999",
-        },
-        "TotalFemale": {
-            "type": "padded_number",
-            "length": 4,
-            "min_value": 0,
-            "max_value": 9999,
-            "allow_blank": True,
-            "description": "ต้องเป็น 0000-9999",
-        },
-    }
+    LOGICAL_PK_FIELDS = LOGICAL_PK_FIELDS_CONFIG
+    NON_EDITABLE_FIELDS = NON_EDITABLE_FIELDS_CONFIG
+    FIELD_VALIDATION_RULES = FIELD_VALIDATION_RULES_CONFIG
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -360,53 +72,21 @@ class EditDataScreen(QWidget):
 
         self.db_column_names = []
         self.original_data_cache = []
-        self.filtered_data_cache = []  # เพิ่มสำหรับเก็บข้อมูลที่ถูกฟิลเตอร์
+        self.filtered_data_cache = []
         self.edited_items = {}
-        self.active_filters = {}  # เพิ่มสำหรับเก็บฟิลเตอร์
+        self.active_filters = {}
 
         self._all_db_fields_r_alldata = []
 
         # โหลดข้อมูลการตรวจสอบจากไฟล์ Excel
-        self.validation_data_from_excel = self.load_validation_data_from_excel()
+        self.validation_data_from_excel = load_validation_data_from_excel(self)
 
         # อัปเดตกฎการตรวจสอบ
-        self.update_validation_rules()
+        update_rules_from_excel_data(self)
 
         self.setup_ui()
         self.load_location_data()
         self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
-
-    def update_validation_rules(self):
-        """อัปเดตกฎการตรวจสอบด้วยข้อมูลจากไฟล์ Excel"""
-
-        # อัปเดต LanguageOther
-        if "LanguageOther" in self.validation_data_from_excel:
-            self.FIELD_VALIDATION_RULES["LanguageOther"] = {
-                "type": "custom",
-                "allowed_values": self.validation_data_from_excel["LanguageOther"],
-                "allow_blank": True,
-                "description": "ต้องเป็นรหัสภาษาอื่นที่กำหนด",
-            }
-
-        # อัปเดต NationalityNumeric
-        if "NationalityNumeric" in self.validation_data_from_excel:
-            self.FIELD_VALIDATION_RULES["NationalityNumeric"] = {
-                "type": "custom",
-                "allowed_values": self.validation_data_from_excel["NationalityNumeric"],
-                "allow_blank": True,
-                "description": "ต้องเป็นรหัสสัญชาติที่กำหนด",
-            }
-
-        # อัปเดต MovedFromAbroad
-        if "MovedFromAbroad" in self.validation_data_from_excel:
-            # สำหรับ MovedFromAbroad ยังคงใช้ padded_number แต่เพิ่มการตรวจสอบค่าที่อนุญาต
-            self.FIELD_VALIDATION_RULES["MovedFromAbroad"] = {
-                "type": "excel_padded_number",  # ประเภทใหม่
-                "length": 3,
-                "allowed_values": self.validation_data_from_excel["MovedFromAbroad"],
-                "allow_blank": True,
-                "description": "ต้องเป็นรหัสประเทศที่กำหนด",
-            }
 
     def update_user_fullname(self, fullname):
         if hasattr(self, "user_fullname_label"):
@@ -414,7 +94,7 @@ class EditDataScreen(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setContentsMargins(10, 10, 10, 10)
 
         header_layout = QHBoxLayout()
         header_label = QLabel("ระบบแก้ไขข้อมูล สปค. 68")
@@ -568,11 +248,28 @@ class EditDataScreen(QWidget):
         self.results_table.setGridStyle(Qt.SolidLine)
         self.results_table.verticalHeader().setVisible(False)
 
-        # ใช้ FilterableMultiLineHeaderView แทน MultiLineHeaderView
-        from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
+        # === เพิ่มบรรทัดนี้เพื่อตรึงคอลัมน์แรก ===
+        # self.results_table.setFixedColumnCount(1)
+        # =======================================
+
+        from frontend.widgets.multi_line_header import (
+            FilterableMultiLineHeaderView,
+        )  # ย้าย import มาไว้ใกล้จุดใช้งาน หรือไว้ด้านบนตามปกติ
+
         self.header = FilterableMultiLineHeaderView(Qt.Horizontal, self.results_table)
-        self.header.filter_requested.connect(self.apply_table_filter)
-        self.header.filter_cleared.connect(self.clear_table_filter)
+
+        # Import ฟังก์ชันกรอง
+        from frontend.widgets.filters import apply_table_filter, clear_table_filter
+
+        self.header.filter_requested.connect(
+            lambda column, text, show_blank_only: apply_table_filter(
+                self, column, text, show_blank_only
+            )
+        )
+        self.header.filter_cleared.connect(
+            lambda column: clear_table_filter(self, column)
+        )
+
         self.results_table.setHorizontalHeader(self.header)
 
     def setup_table_headers_text_and_widths(self):
@@ -943,7 +640,6 @@ class EditDataScreen(QWidget):
         self.results_table.itemChanged.connect(self.handle_item_changed)
         self.results_table.setUpdatesEnabled(True)
 
-
     def prompt_save_edits(self):
         if self.results_table.state() == QAbstractItemView.EditingState:
             self.results_table.setCurrentItem(None)
@@ -978,9 +674,9 @@ class EditDataScreen(QWidget):
             return
 
         # ตรวจสอบข้อมูลก่อนบันทึก
-        validation_errors = self.validate_edited_data()
+        validation_errors = validate_edited_data(self)
         if validation_errors:
-            self.show_validation_errors(validation_errors)
+            show_validation_errors(self, validation_errors)
             return
 
         editor_fullname = self.parent_app.current_user["fullname"]
@@ -1321,488 +1017,4 @@ class EditDataScreen(QWidget):
 
         return codes
 
-    def validate_field_value(self, field_name, value, row_number):
-        """ตรวจสอบค่าของฟิลด์เดียว"""
-        # ถ้าไม่มีกฎสำหรับฟิลด์นี้ ให้ผ่าน
-        if field_name not in self.FIELD_VALIDATION_RULES:
-            return None
-
-        rule = self.FIELD_VALIDATION_RULES[field_name]
-        field_display_name = self.column_mapper.get_column_name(field_name)
-
-        # ถ้าค่าว่างและอนุญาตให้ว่างได้
-        if not value or value.strip() == "":
-            return (
-                None
-                if rule.get("allow_blank", True)
-                else f"แถว {row_number}, คอลัมน์ '{field_display_name}': ไม่สามารถเป็นค่าว่างได้"
-            )
-
-        value = value.strip()
-
-        # ตรวจสอบตามประเภท
-        validation_type = rule.get("type", "text")
-
-        if validation_type == "text":
-            return self._validate_text(
-                field_name, value, rule, field_display_name, row_number
-            )
-        elif validation_type == "options":
-            return self._validate_options(
-                field_name, value, rule, field_display_name, row_number
-            )
-        elif validation_type == "range":
-            return self._validate_range(
-                field_name, value, rule, field_display_name, row_number
-            )
-        elif validation_type == "custom":
-            return self._validate_custom(
-                field_name, value, rule, field_display_name, row_number
-            )
-        elif validation_type == "int_range":
-            return self._validate_int_range(
-                field_name, value, rule, field_display_name, row_number
-            )
-        elif validation_type == "padded_number":
-            return self._validate_padded_number(
-                field_name, value, rule, field_display_name, row_number
-            )
-        elif validation_type == "excel_padded_number":  # เพิ่มประเภทใหม่
-            return self._validate_excel_padded_number(
-                field_name, value, rule, field_display_name, row_number
-            )
-
-        return None
-
-    def _validate_excel_padded_number(
-        self, field_name, value, rule, field_display_name, row_number
-    ):
-        """ตรวจสอบฟิลด์ที่เป็นตัวเลขแบบเติม 0 ข้างหน้า และตรวจสอบกับรายการจาก Excel"""
-        length = rule.get("length", 3)
-        allowed_values = rule.get("allowed_values", [])
-
-        # ตรวจสอบความยาว
-        if len(value) != length:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ต้องมีความยาว {length} หลัก"
-
-        # ตรวจสอบว่าเป็นตัวเลขทั้งหมด
-        if not value.isdigit():
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ต้องเป็นตัวเลขเท่านั้น"
-
-        # ตรวจสอบกับรายการที่อนุญาต
-        if value not in allowed_values:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': {rule.get('description', 'ค่าไม่ถูกต้อง')}"
-
-        return None
-
-    def _validate_text(self, field_name, value, rule, field_display_name, row_number):
-        """ตรวจสอบฟิลด์ข้อความ"""
-        max_length = rule.get("max_length")
-        if max_length and len(value) > max_length:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ความยาวเกิน {max_length} ตัวอักษร (ปัจจุบัน: {len(value)})"
-        return None
-
-    def _validate_options(
-        self, field_name, value, rule, field_display_name, row_number
-    ):
-        """ตรวจสอบฟิลด์ที่มีตัวเลือกจำกัด"""
-        allowed_values = rule.get("allowed_values", [])
-        if value not in allowed_values:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': {rule.get('description', 'ค่าไม่ถูกต้อง')}"
-        return None
-
-    def _validate_range(self, field_name, value, rule, field_display_name, row_number):
-        """ตรวจสอบฟิลด์ที่เป็นช่วงค่า"""
-        allowed_values = rule.get("allowed_values", [])
-        if value not in allowed_values:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': {rule.get('description', 'ค่าไม่ถูกต้อง')}"
-        return None
-
-    def _validate_custom(self, field_name, value, rule, field_display_name, row_number):
-        """ตรวจสอบฟิลด์ที่มีกฎพิเศษ"""
-        allowed_values = rule.get("allowed_values", [])
-        if value not in allowed_values:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': {rule.get('description', 'ค่าไม่ถูกต้อง')}"
-        return None
-
-    def _validate_int_range(
-        self, field_name, value, rule, field_display_name, row_number
-    ):
-        """ตรวจสอบฟิลด์ที่เป็นตัวเลขในช่วงที่กำหนด"""
-        try:
-            int_value = int(value)
-            min_value = rule.get("min_value", 0)
-            max_value = rule.get("max_value", float("inf"))
-
-            if not (min_value <= int_value <= max_value):
-                return f"แถว {row_number}, คอลัมน์ '{field_display_name}': {rule.get('description', 'ค่าไม่ถูกต้อง')}"
-        except ValueError:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ต้องเป็นตัวเลข"
-
-        return None
-
-    def _validate_padded_number(
-        self, field_name, value, rule, field_display_name, row_number
-    ):
-        """ตรวจสอบฟิลด์ที่เป็นตัวเลขแบบเติม 0 ข้างหน้า"""
-        length = rule.get("length", 4)
-        min_value = rule.get("min_value", 0)
-        max_value = rule.get("max_value", 9999)
-
-        # ตรวจสอบความยาว
-        if len(value) != length:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ต้องมีความยาว {length} หลัก"
-
-        # ตรวจสอบว่าเป็นตัวเลขทั้งหมด
-        if not value.isdigit():
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ต้องเป็นตัวเลขเท่านั้น"
-
-        # ตรวจสอบช่วงค่า
-        try:
-            int_value = int(value)
-            if not (min_value <= int_value <= max_value):
-                return f"แถว {row_number}, คอลัมน์ '{field_display_name}': {rule.get('description', 'ค่าไม่ถูกต้อง')}"
-        except ValueError:
-            return f"แถว {row_number}, คอลัมน์ '{field_display_name}': ต้องเป็นตัวเลข"
-
-        return None
-
-    def validate_edited_data(self):
-        """ตรวจสอบข้อมูลที่แก้ไขทั้งหมดก่อนบันทึก"""
-        validation_errors = []
-        displayed_db_fields_in_table = self.column_mapper.get_fields_to_show()
-
-        for (row, visual_col), new_value in self.edited_items.items():
-            if visual_col > 0:  # ข้าม column ลำดับ
-                db_field_index = visual_col - 1
-                if db_field_index < len(displayed_db_fields_in_table):
-                    field_name = displayed_db_fields_in_table[db_field_index]
-
-                    # ข้ามฟิลด์ที่ไม่สามารถแก้ไขได้
-                    if (
-                        field_name in self.LOGICAL_PK_FIELDS
-                        or field_name in self.NON_EDITABLE_FIELDS
-                    ):
-                        continue
-
-                    # ตรวจสอบข้อมูลตามกฎที่กำหนด
-                    error = self.validate_field_value(field_name, new_value, row + 1)
-                    if error:
-                        validation_errors.append(error)
-
-        return validation_errors
-
-    def show_validation_errors(self, errors):
-        """แสดงข้อผิดพลาดในการตรวจสอบข้อมูล"""
-        if not errors:
-            return
-
-        # จำกัดการแสดงผลไม่เกิน 20 ข้อผิดพลาด
-        max_errors_to_show = 20
-        errors_to_show = errors[:max_errors_to_show]
-
-        error_message = "พบข้อผิดพลาดในข้อมูลที่แก้ไข:\n\n"
-        for i, error in enumerate(errors_to_show, 1):
-            error_message += f"{i}. {error}\n"
-
-        if len(errors) > max_errors_to_show:
-            error_message += (
-                f"\n... และอีก {len(errors) - max_errors_to_show} ข้อผิดพลาด\n"
-            )
-
-        error_message += "\nกรุณาแก้ไขข้อมูลให้ถูกต้องก่อนบันทึก"
-
-        # ใช้ QMessageBox แบบ scrollable สำหรับข้อความยาว
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle("ข้อมูลไม่ถูกต้อง")
-        msg.setText("พบข้อผิดพลาดในข้อมูลที่แก้ไข")
-        msg.setDetailedText(error_message)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-
-    def load_validation_data_from_excel(self):
-        """โหลดข้อมูลการตรวจสอบจากไฟล์ Excel"""
-        validation_data = {}
-
-        # กำหนดค่าเริ่มต้นในกรณีที่โหลดไฟล์ไม่ได้
-        default_values = {
-            "LanguageOther": [f"{i:02d}" for i in range(2, 81)] + ["99"],  # ค่าเดิม
-            "NationalityNumeric": [f"{i:03d}" for i in range(4, 910)]
-            + ["000", "910", "920", "930", "940", "990", "997", "998", "999"],
-            "MovedFromAbroad": [f"{i:03d}" for i in range(0, 1000)],  # 000-999
-        }
-
-        try:
-            # โหลดข้อมูล LanguageOther
-            language_other_path = resource_path("assets/language_other.xlsx")
-            if os.path.exists(language_other_path):
-                language_df = pd.read_excel(language_other_path)
-                if "LanguageOther_Code" in language_df.columns:
-                    language_codes = (
-                        language_df["LanguageOther_Code"].dropna().astype(str).tolist()
-                    )
-                    language_codes = [
-                        code.strip() for code in language_codes if code.strip()
-                    ]
-                    if language_codes:  # ถ้ามีข้อมูล
-                        validation_data["LanguageOther"] = language_codes
-                    else:
-                        validation_data["LanguageOther"] = default_values[
-                            "LanguageOther"
-                        ]
-                else:
-                    validation_data["LanguageOther"] = default_values["LanguageOther"]
-            else:
-                validation_data["LanguageOther"] = default_values["LanguageOther"]
-        except Exception as e:
-            validation_data["LanguageOther"] = default_values["LanguageOther"]
-
-        try:
-            # โหลดข้อมูล NationalityNumeric
-            nationality_path = resource_path("assets/nationality.xlsx")
-            if os.path.exists(nationality_path):
-                nationality_df = pd.read_excel(nationality_path)
-                if "Nationality_Code_Numeric-3" in nationality_df.columns:
-                    nationality_codes = (
-                        nationality_df["Nationality_Code_Numeric-3"]
-                        .dropna()
-                        .astype(str)
-                        .tolist()
-                    )
-                    nationality_codes = [
-                        code.strip() for code in nationality_codes if code.strip()
-                    ]
-                    # เพิ่มรหัสพิเศษ
-                    additional_codes = [
-                        "000",
-                        "910",
-                        "920",
-                        "930",
-                        "940",
-                        "990",
-                        "997",
-                        "998",
-                        "999",
-                    ]
-                    nationality_codes.extend(additional_codes)
-                    nationality_codes = list(set(nationality_codes))  # ลบค่าซ้ำ
-                    if nationality_codes:
-                        validation_data["NationalityNumeric"] = nationality_codes
-                    else:
-                        validation_data["NationalityNumeric"] = default_values[
-                            "NationalityNumeric"
-                        ]
-                else:
-                    validation_data["NationalityNumeric"] = default_values[
-                        "NationalityNumeric"
-                    ]
-            else:
-                validation_data["NationalityNumeric"] = default_values[
-                    "NationalityNumeric"
-                ]
-        except Exception as e:
-            validation_data["NationalityNumeric"] = default_values["NationalityNumeric"]
-
-        try:
-            # โหลดข้อมูล MovedFromAbroad
-            country_path = resource_path("assets/country.xlsx")
-            if os.path.exists(country_path):
-                country_df = pd.read_excel(country_path)
-                if "Countries_Code_Num-3" in country_df.columns:
-                    country_codes = (
-                        country_df["Countries_Code_Num-3"].dropna().astype(str).tolist()
-                    )
-                    country_codes = [
-                        code.strip() for code in country_codes if code.strip()
-                    ]
-                    if country_codes:
-                        validation_data["MovedFromAbroad"] = country_codes
-                    else:
-                        validation_data["MovedFromAbroad"] = default_values[
-                            "MovedFromAbroad"
-                        ]
-                else:
-                    validation_data["MovedFromAbroad"] = default_values[
-                        "MovedFromAbroad"
-                    ]
-            else:
-                validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
-        except Exception as e:
-            validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
-
-        return validation_data
-
-    # เพิ่ม methods สำหรับจัดการฟิลเตอร์
-    def apply_table_filter(self, column, text, show_blank_only):
-        """ใช้ฟิลเตอร์กับตาราง"""
-        if not self.original_data_cache:
-            return
-
-        # บันทึกฟิลเตอร์
-        if text or show_blank_only:
-            self.active_filters[column] = {
-                "text": text.lower(),
-                "show_blank": show_blank_only,
-            }
-        else:
-            if column in self.active_filters:
-                del self.active_filters[column]
-
-        # กรองข้อมูล
-        self.filter_table_data()
-
-    def clear_table_filter(self, column):
-        """ล้างฟิลเตอร์ของคอลัมน์"""
-        if column in self.active_filters:
-            del self.active_filters[column]
-
-        # กรองข้อมูลใหม่
-        self.filter_table_data()
-
-    def filter_table_data(self):
-        """กรองข้อมูลในตารางตามฟิลเตอร์ที่ใช้งานอยู่"""
-        if not self.original_data_cache:
-            return
-
-        displayed_fields = self.column_mapper.get_fields_to_show()
-        filtered_data = []
-
-        for row_data in self.original_data_cache:
-            should_include = True
-
-            # ตรวจสอบทุกฟิลเตอร์
-            for column, filter_info in self.active_filters.items():
-                if column == 0:  # ข้ามคอลัมน์ลำดับ
-                    continue
-
-                # คำนวณ field index (ลบ 1 เพราะคอลัมน์ 0 คือลำดับ)
-                field_index = column - 1
-                if field_index >= len(displayed_fields):
-                    continue
-
-                field_name = displayed_fields[field_index]
-                field_value = row_data.get(field_name)
-
-                # แปลงค่าเป็น string สำหรับการเปรียบเทียบ
-                if field_value is None:
-                    value_str = ""
-                else:
-                    value_str = str(field_value).strip()
-
-                # ตรวจสอบเงื่อนไข show_blank
-                if filter_info.get("show_blank", False):
-                    if value_str != "":  # ถ้าไม่ใช่ค่าว่าง ให้ข้าม
-                        should_include = False
-                        break
-
-                # ตรวจสอบเงื่อนไขข้อความ
-                filter_text = filter_info.get("text", "").strip()
-                if filter_text:
-                    if filter_text.lower() not in value_str.lower():
-                        should_include = False
-                        break
-
-            if should_include:
-                filtered_data.append(row_data)
-
-        # อัปเดตตาราง
-        self.display_filtered_results(filtered_data)
-
-    def display_filtered_results(self, filtered_data):
-        """แสดงผลข้อมูลที่ถูกฟิลเตอร์"""
-        # **สำคัญ: ปิด itemChanged signal ก่อนอัปเดตตาราง**
-        self.results_table.setUpdatesEnabled(False)
-        try:
-            self.results_table.itemChanged.disconnect(self.handle_item_changed)
-        except TypeError:
-            pass  # ถ้าไม่มี connection อยู่แล้ว
-
-        # เก็บ edited_items ที่มีอยู่ไว้ก่อน
-        existing_edits = self.edited_items.copy()
-
-        # ตั้งค่าหัวตาราง
-        self.setup_table_headers_text_and_widths()
-
-        # ล้างตารางเก่า
-        self.results_table.setRowCount(0)
-
-        # เก็บข้อมูลที่กรองแล้ว
-        self.filtered_data_cache = filtered_data
-
-        if not filtered_data:
-            from frontend.utils.error_message import show_info_message
-            show_info_message(self, "ผลการกรอง", "ไม่พบข้อมูลที่ตรงกับเงื่อนไขการกรอง")
-        else:
-            self.results_table.setRowCount(len(filtered_data))
-            displayed_db_fields_in_table = self.column_mapper.get_fields_to_show()
-
-            for row_idx, row_data in enumerate(filtered_data):
-                # สร้าง item ลำดับ
-                sequence_text = str(row_idx + 1)
-                sequence_item = QTableWidgetItem(sequence_text)
-                sequence_item.setTextAlignment(Qt.AlignCenter)
-                flags = sequence_item.flags()
-                sequence_item.setFlags(flags & ~Qt.ItemIsEditable)
-                sequence_item.setBackground(QColor("#f0f0f0"))
-                self.results_table.setItem(row_idx, 0, sequence_item)
-
-                # หา index ของข้อมูลนี้ใน original_data_cache
-                original_row_index = -1
-                for orig_idx, orig_data in enumerate(self.original_data_cache):
-                    # เปรียบเทียบ Primary Key เพื่อหา original index
-                    is_same_row = True
-                    for pk_field in self.LOGICAL_PK_FIELDS:
-                        if orig_data.get(pk_field) != row_data.get(pk_field):
-                            is_same_row = False
-                            break
-
-                    if is_same_row:
-                        original_row_index = orig_idx
-                        break
-
-                # สร้าง items สำหรับแต่ละคอลัมน์
-                for db_field_idx, displayed_field_name in enumerate(
-                    displayed_db_fields_in_table
-                ):
-                    visual_col_idx_table = db_field_idx + 1
-
-                    cell_value = ""
-                    if displayed_field_name in row_data:
-                        raw_value = row_data[displayed_field_name]
-                        cell_value = str(raw_value) if raw_value is not None else ""
-
-                    item = QTableWidgetItem(cell_value)
-                    # **แก้ไข: ปรับการจัดตำแหน่งตามชื่อฟิลด์**
-                    if displayed_field_name in ["FirstName", "LastName"]:
-                        item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # ชิดซ้าย
-                    else:
-                        item.setTextAlignment(Qt.AlignCenter)  # ตรงกลางเหมือนเดิม
-
-                    # ตั้งค่าการแก้ไขได้หรือไม่
-                    if (
-                        displayed_field_name in self.LOGICAL_PK_FIELDS
-                        or displayed_field_name in self.NON_EDITABLE_FIELDS
-                    ):
-                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                        item.setBackground(QColor("#f0f0f0"))
-                    else:
-                        item.setFlags(item.flags() | Qt.ItemIsEditable)
-
-                    # **สำคัญ: ตรวจสอบว่ามีการแก้ไขในตำแหน่งนี้หรือไม่**
-                    if original_row_index != -1:
-                        edit_key = (original_row_index, visual_col_idx_table)
-                        if edit_key in existing_edits:
-                            # ถ้ามีการแก้ไขอยู่ ให้ใช้ข้อมูลที่แก้ไขแล้ว
-                            item.setText(existing_edits[edit_key])
-                            item.setBackground(QColor("lightyellow"))
-
-                            # อัปเดต edited_items ด้วย index ใหม่
-                            new_edit_key = (row_idx, visual_col_idx_table)
-                            self.edited_items[new_edit_key] = existing_edits[edit_key]
-
-                    self.results_table.setItem(row_idx, visual_col_idx_table, item)
-
-        # **สำคัญ: เปิด itemChanged signal กลับมาหลังจากอัปเดตเสร็จ**
-        self.results_table.itemChanged.connect(self.handle_item_changed)
-        self.results_table.setUpdatesEnabled(True)
+    

@@ -7,3 +7,8 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+
+Install File
+```bash
+https://drive.google.com/drive/folders/1gLu_SIZFIw_Hjs2cQctdekXQezuGaa_6?usp=sharing
+```

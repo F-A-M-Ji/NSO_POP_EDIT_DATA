@@ -1016,5 +1016,3 @@ class EditDataScreen(QWidget):
                 codes["SubDistCode"] = df_filtered["SubDistCode"].iloc[0]
 
         return codes
-
-    

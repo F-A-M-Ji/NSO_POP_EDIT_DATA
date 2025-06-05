@@ -5,7 +5,7 @@ LOGICAL_PK_FIELDS_CONFIG = [
     "Population_No",
 ]
 
-NON_EDITABLE_FIELDS_CONFIG = ["FirstName", "LastName"]
+NON_EDITABLE_FIELDS_CONFIG = ["FirstName", "LastName", "HouseholdMemberNumber"]
 
 FIELD_VALIDATION_RULES_CONFIG = {
     "BuildingType": {

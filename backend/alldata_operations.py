@@ -230,3 +230,192 @@ def get_area_name_mapping():
         
     except Exception as e:
         return {"": "", "1": "ในเขตเทศบาล", "2": "นอกเขตเทศบาล"}
+    
+def get_regions_from_db():
+    """ดึงข้อมูลภาคจากฐานข้อมูล r_alldata_edit"""
+    try:
+        connection = get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        
+        # ดึงข้อมูล RegCode และ RegName แบบ DISTINCT เรียงตาม RegCode
+        cursor.execute("""
+            SELECT DISTINCT [RegCode], [RegName] 
+            FROM [r_alldata_edit] 
+            WHERE [RegCode] IS NOT NULL AND [RegName] IS NOT NULL
+            ORDER BY [RegCode]
+        """)
+        
+        results = cursor.fetchall()
+        regions = []
+        
+        for row in results:
+            reg_code = convert_to_native_type(row[0])
+            reg_name = convert_to_native_type(row[1])
+            
+            if reg_code and reg_name:
+                # แสดงเป็น RegName (RegCode) เช่น ภาคตะวันออกเฉียงเหนือ (5)
+                display_text = f"{reg_code} : {reg_name.strip()}"
+                regions.append({
+                    'code': str(reg_code).strip(),
+                    'name': reg_name.strip(),
+                    'display': display_text
+                })
+        
+        connection.close()
+        return regions
+        
+    except Exception as e:
+        print(f"Error getting regions from database: {e}")
+        return []
+
+def get_provinces_from_db(reg_code=None):
+    """ดึงข้อมูลจังหวัดจากฐานข้อมูล r_alldata_edit"""
+    try:
+        connection = get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        
+        # สร้าง query สำหรับดึงข้อมูล ProvCode และ ProvName
+        base_query = """
+            SELECT DISTINCT [ProvCode], [ProvName] 
+            FROM [r_alldata_edit] 
+            WHERE [ProvCode] IS NOT NULL AND [ProvName] IS NOT NULL
+        """
+        
+        if reg_code:
+            query = f"{base_query} AND [RegCode] = ? ORDER BY [ProvCode]"
+            cursor.execute(query, [convert_to_native_type(reg_code)])
+        else:
+            query = f"{base_query} ORDER BY [ProvCode]"
+            cursor.execute(query)
+        
+        results = cursor.fetchall()
+        provinces = []
+        
+        for row in results:
+            prov_code = convert_to_native_type(row[0])
+            prov_name = convert_to_native_type(row[1])
+            
+            if prov_code and prov_name:
+                # แสดงเป็น ProvName (ProvCode) เช่น ขอนแก่น (40)
+                display_text = f"{prov_code} : {prov_name.strip()}"
+                provinces.append({
+                    'code': str(prov_code).strip(),
+                    'name': prov_name.strip(),
+                    'display': display_text
+                })
+        
+        connection.close()
+        return provinces
+        
+    except Exception as e:
+        print(f"Error getting provinces from database: {e}")
+        return []
+
+def get_districts_from_db(prov_code=None):
+    """ดึงข้อมูลอำเภอ/เขตจากฐานข้อมูล r_alldata_edit"""
+    try:
+        connection = get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        
+        # สร้าง query สำหรับดึงข้อมูล DistCode และ DistName
+        base_query = """
+            SELECT DISTINCT [DistCode], [DistName] 
+            FROM [r_alldata_edit] 
+            WHERE [DistCode] IS NOT NULL AND [DistName] IS NOT NULL
+        """
+        
+        if prov_code:
+            query = f"{base_query} AND [ProvCode] = ? ORDER BY [DistCode]"
+            cursor.execute(query, [convert_to_native_type(prov_code)])
+        else:
+            query = f"{base_query} ORDER BY [DistCode]"
+            cursor.execute(query)
+        
+        results = cursor.fetchall()
+        districts = []
+        
+        for row in results:
+            dist_code = convert_to_native_type(row[0])
+            dist_name = convert_to_native_type(row[1])
+            
+            if dist_code and dist_name:
+                # แสดงเป็น DistName (DistCode) เช่น เซกา (04)
+                display_text = f"{dist_code} : {dist_name.strip()}"
+                districts.append({
+                    'code': str(dist_code).strip(),
+                    'name': dist_name.strip(),
+                    'display': display_text
+                })
+        
+        connection.close()
+        return districts
+        
+    except Exception as e:
+        print(f"Error getting districts from database: {e}")
+        return []
+
+def get_subdistricts_from_db(dist_code=None, prov_code=None):
+    """ดึงข้อมูลตำบล/แขวงจากฐานข้อมูล r_alldata_edit"""
+    try:
+        connection = get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        
+        # สร้าง query สำหรับดึงข้อมูล SubDistCode และ SubDistName
+        base_query = """
+            SELECT DISTINCT [SubDistCode], [SubDistName] 
+            FROM [r_alldata_edit] 
+            WHERE [SubDistCode] IS NOT NULL AND [SubDistName] IS NOT NULL
+        """
+        
+        params = []
+        conditions = []
+        
+        if prov_code:
+            conditions.append("[ProvCode] = ?")
+            params.append(convert_to_native_type(prov_code))
+        
+        if dist_code:
+            conditions.append("[DistCode] = ?")
+            params.append(convert_to_native_type(dist_code))
+        
+        if conditions:
+            query = f"{base_query} AND {' AND '.join(conditions)} ORDER BY [SubDistCode]"
+            cursor.execute(query, params)
+        else:
+            query = f"{base_query} ORDER BY [SubDistCode]"
+            cursor.execute(query)
+        
+        results = cursor.fetchall()
+        subdistricts = []
+        
+        for row in results:
+            subdist_code = convert_to_native_type(row[0])
+            subdist_name = convert_to_native_type(row[1])
+            
+            if subdist_code and subdist_name:
+                # แสดงเป็น SubDistName (SubDistCode) เช่น ซาง (02)
+                display_text = f"{subdist_code} : {subdist_name.strip()}"
+                subdistricts.append({
+                    'code': str(subdist_code).strip(),
+                    'name': subdist_name.strip(),
+                    'display': display_text
+                })
+        
+        connection.close()
+        return subdistricts
+        
+    except Exception as e:
+        print(f"Error getting subdistricts from database: {e}")
+        return []

@@ -1,7 +1,7 @@
 DB_CONFIG = {
-    'host': '172.20.3.22',
+    'host': '172.19.3.71',
     'port': 1433,
-    'username': 'sa',
-    'password': 'regdbadmin123@',
-    'database': 'pop68T'
+    'username': 'danny',
+    'password': 'P@ssw0rd12#$',
+    'database': 'pop6768'
 }

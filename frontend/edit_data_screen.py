@@ -1,7 +1,6 @@
 import os
 import datetime
 
-import pandas as pd
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -28,12 +27,15 @@ from backend.alldata_operations import (
     save_edited_r_alldata_rows,
     get_distinct_values,
     get_area_name_mapping,
+    get_regions_from_db,
+    get_provinces_from_db,
+    get_districts_from_db,
+    get_subdistricts_from_db,
 )
 from frontend.widgets.multi_line_header import MultiLineHeaderView
 from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
 from frontend.utils.error_message import show_error_message, show_info_message
 from frontend.utils.shadow_effect import add_shadow_effect
-from frontend.utils.resource_path import resource_path
 from frontend.data_rules.edit_data_rules import (
     LOGICAL_PK_FIELDS_CONFIG,
     NON_EDITABLE_FIELDS_CONFIG,
@@ -69,7 +71,7 @@ class EditDataScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_app = parent
-        self.location_data = None
+
         self.column_mapper = ColumnMapper.get_instance()
 
         self.db_column_names = []
@@ -85,8 +87,7 @@ class EditDataScreen(QWidget):
         update_rules_from_excel_data(self)
 
         self.setup_ui()
-        self.load_location_data()
-        self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
+        self.load_initial_data()
 
     def update_user_fullname(self, fullname):
         if hasattr(self, "user_fullname_label"):
@@ -563,7 +564,7 @@ class EditDataScreen(QWidget):
 
     def search_data(self):
         """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
-    
+
         if self.edited_items:
             reply = QMessageBox.question(
                 self,
@@ -585,15 +586,17 @@ class EditDataScreen(QWidget):
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
             if not self._all_db_fields_r_alldata:
                 show_error_message(
-                    self, "Error", "โครงสร้างตาราง r_alldata_edit ไม่พร้อมใช้งาน ไม่สามารถค้นหาได้"
+                    self,
+                    "Error",
+                    "โครงสร้างตาราง r_alldata_edit ไม่พร้อมใช้งาน ไม่สามารถค้นหาได้",
                 )
                 return
 
         search_conditions = {}
-    
+
         location_codes = self.get_selected_codes()
         search_conditions.update(location_codes)
-    
+
         additional_conditions = {
             "AreaCode": self.get_selected_area_code(),
             "EA_NO": self.get_selected_ea_no(),
@@ -603,7 +606,7 @@ class EditDataScreen(QWidget):
             "HouseholdNumber": self.get_selected_household_number(),
             "HouseholdMemberNumber": self.get_selected_household_member_number(),
         }
-    
+
         for key, value in additional_conditions.items():
             if value is not None:
                 search_conditions[key] = value
@@ -847,9 +850,14 @@ class EditDataScreen(QWidget):
                     )
 
     def reset_screen_state(self):
+        """รีเซ็ตสถานะหน้าจอ"""
+        # รีเซ็ต dropdown ภาค
         self.region_combo.setCurrentIndex(0)
-        self.clear_area_code_and_below()
 
+        # กลับไปสถานะเริ่มต้น - แสดงเฉพาะ "--เลือกภาค--"
+        self.setup_initial_dropdown_state()
+
+        # ส่วนที่เหลือเหมือนเดิม...
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -872,10 +880,14 @@ class EditDataScreen(QWidget):
             self.user_fullname_label.setText("User: N/A")
 
     def clear_search(self):
+        """ล้างการค้นหาทั้งหมด"""
+        # รีเซ็ต dropdown ภาค
         self.region_combo.setCurrentIndex(0)
 
-        self.clear_area_code_and_below()
+        # กลับไปสถานะเริ่มต้น - แสดงเฉพาะ "--เลือกภาค--"
+        self.setup_initial_dropdown_state()
 
+        # ส่วนที่เหลือเหมือนเดิม...
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -912,264 +924,332 @@ class EditDataScreen(QWidget):
         else:
             self.parent_app.perform_logout()
 
-    def load_location_data(self):
+    def load_initial_data(self):
+        """โหลดข้อมูลเริ่มต้น"""
         try:
-            excel_path = resource_path(
-                os.path.join("assets", "reg_prov_dist_subdist.xlsx")
-            )
-            self.location_data = pd.read_excel(excel_path, sheet_name="Area_code")
+            self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
 
+            self.load_regions()
+
+            self.setup_initial_dropdown_state()
+
+        except Exception as e:
+            show_error_message(self, "Error", f"ไม่สามารถโหลดข้อมูลเริ่มต้นได้: {str(e)}")
+
+    def setup_initial_dropdown_state(self):
+        """ตั้งค่าสถานะเริ่มต้นของ dropdown ทั้งหมด"""
+
+        self.province_combo.clear()
+
+        self.district_combo.clear()
+
+        self.subdistrict_combo.clear()
+
+        self.area_code_combo.clear()
+        self.ea_no_combo.clear()
+        self.vil_code_combo.clear()
+        self.vil_name_combo.clear()
+        self.building_number_combo.clear()
+        self.household_number_combo.clear()
+        self.household_member_number_combo.clear()
+
+    def load_regions(self):
+        """โหลดข้อมูลภาค"""
+        try:
             self.region_combo.blockSignals(True)
             self.region_combo.clear()
             self.region_combo.addItem("-- เลือกภาค --")
-            regions = sorted(self.location_data["RegName"].unique())
+
+            regions = get_regions_from_db()
             for region in regions:
-                self.region_combo.addItem(region)
+                self.region_combo.addItem(region["display"])
+                self.region_combo.setItemData(
+                    self.region_combo.count() - 1, region["code"]
+                )
+
             self.region_combo.blockSignals(False)
 
+        except Exception as e:
+            print(f"Error loading regions: {e}")
+
+    def load_provinces(self, reg_code=None):
+        """โหลดข้อมูลจังหวัด"""
+        try:
+            self.province_combo.blockSignals(True)
             self.province_combo.clear()
             self.province_combo.addItem("-- เลือกจังหวัด --")
+
+            provinces = get_provinces_from_db(reg_code)
+            for province in provinces:
+                self.province_combo.addItem(province["display"])
+                self.province_combo.setItemData(
+                    self.province_combo.count() - 1, province["code"]
+                )
+
+            self.province_combo.blockSignals(False)
+
+        except Exception as e:
+            print(f"Error loading provinces: {e}")
+
+    def load_districts(self, prov_code=None):
+        """โหลดข้อมูลอำเภอ/เขต"""
+        try:
+            self.district_combo.blockSignals(True)
             self.district_combo.clear()
             self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
+
+            districts = get_districts_from_db(prov_code)
+            for district in districts:
+                self.district_combo.addItem(district["display"])
+                self.district_combo.setItemData(
+                    self.district_combo.count() - 1, district["code"]
+                )
+
+            self.district_combo.blockSignals(False)
+
+        except Exception as e:
+            print(f"Error loading districts: {e}")
+
+    def load_subdistricts(self, dist_code=None, prov_code=None):
+        """โหลดข้อมูลตำบล/แขวง"""
+        try:
+            self.subdistrict_combo.blockSignals(True)
             self.subdistrict_combo.clear()
             self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
 
+            subdistricts = get_subdistricts_from_db(dist_code, prov_code)
+            for subdistrict in subdistricts:
+                self.subdistrict_combo.addItem(subdistrict["display"])
+                self.subdistrict_combo.setItemData(
+                    self.subdistrict_combo.count() - 1, subdistrict["code"]
+                )
+
+            self.subdistrict_combo.blockSignals(False)
+
         except Exception as e:
-            show_error_message(self, "Error", f"Failed to load location data: {str(e)}")
-            self.location_data = pd.DataFrame()
+            print(f"Error loading subdistricts: {e}")
 
     def on_region_changed(self, index):
+        """เมื่อเปลี่ยนภาค"""
         self.province_combo.blockSignals(True)
         self.district_combo.blockSignals(True)
         self.subdistrict_combo.blockSignals(True)
 
-        self.province_combo.clear()
-        self.province_combo.addItem("-- เลือกจังหวัด --")
-        self.district_combo.clear()
-        self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
-        self.subdistrict_combo.clear()
-        self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
+        # ล้าง dropdown ทั้งหมดหลังจากจังหวัด
+        self.clear_province_and_below_without_placeholder()
 
-        if (
-            index > 0
-            and self.location_data is not None
-            and not self.location_data.empty
-        ):
-            selected_region = self.region_combo.currentText()
-            provinces = sorted(
-                self.location_data[self.location_data["RegName"] == selected_region][
-                    "ProvName"
-                ].unique()
-            )
-            for province in provinces:
-                self.province_combo.addItem(province)
+        if index > 0:  # ถ้าเลือกภาคที่ไม่ใช่ "--เลือกภาค--"
+            reg_code = self.region_combo.itemData(index)
+            if reg_code:
+                # โหลดข้อมูลจังหวัดและเพิ่มข้อความ "--เลือกจังหวัด--"
+                self.load_provinces_with_placeholder(reg_code)
+        else:
+            # ถ้าเลือกกลับไปเป็น "--เลือกภาค--" ให้ล้างจังหวัดโดยไม่มี placeholder
+            self.province_combo.clear()
 
         self.province_combo.blockSignals(False)
         self.district_combo.blockSignals(False)
         self.subdistrict_combo.blockSignals(False)
-        self.on_province_changed(0)
 
     def on_province_changed(self, index):
+        """เมื่อเปลี่ยนจังหวัด"""
         self.district_combo.blockSignals(True)
         self.subdistrict_combo.blockSignals(True)
-        self.district_combo.clear()
-        self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
-        self.subdistrict_combo.clear()
-        self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
 
-        if (
-            index > 0
-            and self.region_combo.currentIndex() > 0
-            and self.location_data is not None
-            and not self.location_data.empty
-        ):
-            selected_region = self.region_combo.currentText()
-            selected_province = self.province_combo.currentText()
-            if selected_province != "-- เลือกจังหวัด --":
-                filtered_data = self.location_data[
-                    (self.location_data["RegName"] == selected_region)
-                    & (self.location_data["ProvName"] == selected_province)
-                ]
-                districts = sorted(filtered_data["DistName"].unique())
-                for district in districts:
-                    self.district_combo.addItem(district)
+        # ล้าง dropdown ทั้งหมดหลังจากอำเภอ
+        self.clear_district_and_below_without_placeholder()
+
+        if index > 0:  # ถ้าเลือกจังหวัดที่ไม่ใช่ "--เลือกจังหวัด--"
+            prov_code = self.province_combo.itemData(index)
+            if prov_code:
+                # โหลดข้อมูลอำเภอและเพิ่มข้อความ "--เลือกอำเภอ/เขต--"
+                self.load_districts_with_placeholder(prov_code)
+        else:
+            # ถ้าเลือกกลับไปเป็น "--เลือกจังหวัด--" ให้ล้างอำเภอโดยไม่มี placeholder
+            self.district_combo.clear()
 
         self.district_combo.blockSignals(False)
         self.subdistrict_combo.blockSignals(False)
-        self.on_district_changed(0)
 
     def on_district_changed(self, index):
+        """เมื่อเปลี่ยนอำเภอ/เขต"""
         self.subdistrict_combo.blockSignals(True)
-        self.subdistrict_combo.clear()
-        self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
 
-        if (
-            index > 0
-            and self.province_combo.currentIndex() > 0
-            and self.region_combo.currentIndex() > 0
-            and self.location_data is not None
-            and not self.location_data.empty
-        ):
-            selected_region = self.region_combo.currentText()
-            selected_province = self.province_combo.currentText()
-            selected_district = self.district_combo.currentText()
-            if selected_district != "-- เลือกอำเภอ/เขต --":
-                filtered_data = self.location_data[
-                    (self.location_data["RegName"] == selected_region)
-                    & (self.location_data["ProvName"] == selected_province)
-                    & (self.location_data["DistName"] == selected_district)
-                ]
-                subdistricts = sorted(filtered_data["SubDistName"].unique())
-                for subdistrict in subdistricts:
-                    self.subdistrict_combo.addItem(subdistrict)
+        # ล้าง dropdown ทั้งหมดหลังจากตำบล
+        self.clear_subdistrict_and_below_without_placeholder()
+
+        if index > 0:  # ถ้าเลือกอำเภอที่ไม่ใช่ "--เลือกอำเภอ/เขต--"
+            dist_code = self.district_combo.itemData(index)
+            prov_code = self.get_selected_province_code()
+            if dist_code:
+                # โหลดข้อมูลตำบลและเพิ่มข้อความ "--เลือกตำบล/แขวง--"
+                self.load_subdistricts_with_placeholder(dist_code, prov_code)
+        else:
+            # ถ้าเลือกกลับไปเป็น "--เลือกอำเภอ/เขต--" ให้ล้างตำบลโดยไม่มี placeholder
+            self.subdistrict_combo.clear()
+
         self.subdistrict_combo.blockSignals(False)
 
+    def get_selected_province_code(self):
+        """ดึงรหัสจังหวัดที่เลือก"""
+        if self.province_combo.currentIndex() > 0:
+            return self.province_combo.itemData(self.province_combo.currentIndex())
+        return None
+
     def on_subdistrict_changed(self, index):
-        """เมื่อเปลี่ยนตำบล ให้ populate area code เสมอ"""
+        """เมื่อเปลี่ยนตำบล ให้แสดงเฉพาะ dropdown ถัดไปเท่านั้น"""
         self.area_code_combo.blockSignals(True)
-        self.clear_area_code_and_below()
-    
-        self.populate_area_code()
-    
+
+        # ล้าง dropdown ทั้งหมดหลังจาก area code
+        self.clear_area_code_and_below_without_placeholder()
+
+        if index > 0:  # ถ้าเลือกตำบลที่ไม่ใช่ "--เลือกตำบล/แขวง--"
+            # แสดงเฉพาะ area_code_combo และโหลดข้อมูลจริง
+            self.area_code_combo.clear()
+            self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
+            self.populate_area_code()
+        # ถ้าเลือกกลับไปเป็น "--เลือกตำบล/แขวง--" dropdown ที่เหลือจะว่างเปล่า
+
         self.area_code_combo.blockSignals(False)
 
     def on_area_code_changed(self, index):
-        """เมื่อเปลี่ยน area code ให้ populate EA_NO เสมอ"""
+        """เมื่อเปลี่ยน area code"""
         self.ea_no_combo.blockSignals(True)
-        self.clear_ea_no_and_below()
-    
-        self.populate_ea_no()
-    
+        self.clear_ea_no_and_below_without_placeholder()
+
+        if index > 0:  # เลือก area code ที่ไม่ใช่ "--เลือก...--"
+            # แสดงเฉพาะ ea_no_combo และโหลดข้อมูลจริง
+            self.ea_no_combo.clear()
+            self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
+            self.populate_ea_no()
+
         self.ea_no_combo.blockSignals(False)
 
     def on_ea_no_changed(self, index):
-        """เมื่อเปลี่ยน EA_NO ให้ populate VilCode เสมอ"""
+        """เมื่อเปลี่ยน EA_NO"""
         self.vil_code_combo.blockSignals(True)
-        self.clear_vil_code_and_below()
-    
-        self.populate_vil_code()
-    
+        self.clear_vil_code_and_below_without_placeholder()
+
+        if index > 0:  # เลือก EA_NO ที่ไม่ใช่ "--เลือก...--"
+            # แสดงเฉพาะ vil_code_combo และโหลดข้อมูลจริง
+            self.vil_code_combo.clear()
+            self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
+            self.populate_vil_code()
+
         self.vil_code_combo.blockSignals(False)
 
     def on_vil_code_changed(self, index):
-        """เมื่อเปลี่ยน VilCode ให้ populate VilName เสมอ"""
+        """เมื่อเปลี่ยน VilCode"""
         self.vil_name_combo.blockSignals(True)
-        self.clear_vil_name_and_below()
-    
-        self.populate_vil_name()
-    
+        self.clear_vil_name_and_below_without_placeholder()
+
+        if index > 0:  # เลือก VilCode ที่ไม่ใช่ "--เลือก...--"
+            # แสดงเฉพาะ vil_name_combo และโหลดข้อมูลจริง
+            self.vil_name_combo.clear()
+            self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
+            self.populate_vil_name()
+
         self.vil_name_combo.blockSignals(False)
 
     def on_vil_name_changed(self, index):
-        """เมื่อเปลี่ยน VilName ให้ populate BuildingNumber เสมอ"""
+        """เมื่อเปลี่ยน VilName"""
         self.building_number_combo.blockSignals(True)
-        self.clear_building_number_and_below()
-    
-        self.populate_building_number()
-    
+        self.clear_building_number_and_below_without_placeholder()
+
+        if index > 0:  # เลือก VilName ที่ไม่ใช่ "--เลือก...--"
+            # แสดงเฉพาะ building_number_combo และโหลดข้อมูลจริง
+            self.building_number_combo.clear()
+            self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
+            self.populate_building_number()
+
         self.building_number_combo.blockSignals(False)
 
     def on_building_number_changed(self, index):
-        """เมื่อเปลี่ยน BuildingNumber ให้ populate HouseholdNumber เสมอ"""
+        """เมื่อเปลี่ยน BuildingNumber"""
         self.household_number_combo.blockSignals(True)
-        self.clear_household_number_and_below()
-    
-        self.populate_household_number()
-    
+        self.clear_household_number_and_below_without_placeholder()
+
+        if index > 0:  # เลือก BuildingNumber ที่ไม่ใช่ "--เลือก...--"
+            # แสดงเฉพาะ household_number_combo และโหลดข้อมูลจริง
+            self.household_number_combo.clear()
+            self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
+            self.populate_household_number()
+
         self.household_number_combo.blockSignals(False)
 
     def on_household_number_changed(self, index):
-        """เมื่อเปลี่ยน HouseholdNumber ให้ populate HouseholdMemberNumber เสมอ"""
+        """เมื่อเปลี่ยน HouseholdNumber"""
         self.household_member_number_combo.blockSignals(True)
-        self.clear_household_member_number_and_below()
-    
-        self.populate_household_member_number()
-    
+        self.clear_household_member_number_and_below_without_placeholder()
+
+        if index > 0:  # เลือก HouseholdNumber ที่ไม่ใช่ "--เลือก...--"
+            # แสดงเฉพาะ household_member_number_combo และโหลดข้อมูลจริง
+            self.household_member_number_combo.clear()
+            self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
+            self.populate_household_member_number()
+
         self.household_member_number_combo.blockSignals(False)
 
     def on_household_member_number_changed(self, index):
         pass
 
     def get_selected_codes(self):
-        codes = {
-            "RegCode": None,
-            "ProvCode": None,
-            "DistCode": None,
-            "SubDistCode": None,
-        }
-        if self.location_data is None or self.location_data.empty:
-            return codes
+        """ดึงรหัสที่เลือกจาก dropdown ทั้งหมด"""
+        codes = {}
 
-        selected_region = self.region_combo.currentText()
-        selected_province = self.province_combo.currentText()
-        selected_district = self.district_combo.currentText()
-        selected_subdistrict = self.subdistrict_combo.currentText()
+        if self.region_combo.currentIndex() > 0:
+            reg_code = self.region_combo.itemData(self.region_combo.currentIndex())
+            if reg_code:
+                codes["RegCode"] = reg_code
 
-        current_filter = pd.Series(
-            [True] * len(self.location_data), index=self.location_data.index
-        )
+        if self.province_combo.currentIndex() > 0:
+            prov_code = self.province_combo.itemData(self.province_combo.currentIndex())
+            if prov_code:
+                codes["ProvCode"] = prov_code
 
-        if selected_region != "-- เลือกภาค --":
-            current_filter &= self.location_data["RegName"] == selected_region
-            df_filtered = self.location_data[current_filter]
-            if not df_filtered.empty:
-                codes["RegCode"] = df_filtered["RegCode"].iloc[0]
-        else:
-            return codes
+        if self.district_combo.currentIndex() > 0:
+            dist_code = self.district_combo.itemData(self.district_combo.currentIndex())
+            if dist_code:
+                codes["DistCode"] = dist_code
 
-        if selected_province != "-- เลือกจังหวัด --":
-            current_filter &= self.location_data["ProvName"] == selected_province
-            df_filtered = self.location_data[current_filter]
-            if not df_filtered.empty:
-                codes["ProvCode"] = df_filtered["ProvCode"].iloc[0]
-        else:
-            return codes
-
-        if selected_district != "-- เลือกอำเภอ/เขต --":
-            current_filter &= self.location_data["DistName"] == selected_district
-            df_filtered = self.location_data[current_filter]
-            if not df_filtered.empty:
-                codes["DistCode"] = df_filtered["DistCode"].iloc[0]
-        else:
-            return codes
-
-        if selected_subdistrict != "-- เลือกตำบล/แขวง --":
-            current_filter &= self.location_data["SubDistName"] == selected_subdistrict
-            df_filtered = self.location_data[current_filter]
-            if not df_filtered.empty:
-                codes["SubDistCode"] = df_filtered["SubDistCode"].iloc[0]
+        if self.subdistrict_combo.currentIndex() > 0:
+            subdist_code = self.subdistrict_combo.itemData(
+                self.subdistrict_combo.currentIndex()
+            )
+            if subdist_code:
+                codes["SubDistCode"] = subdist_code
 
         return codes
 
     def populate_area_code(self):
         """เติมข้อมูล AreaCode dropdown"""
         where_conditions, where_params = self.build_where_conditions_up_to_subdistrict()
-    
+
         area_codes = get_distinct_values("AreaCode", where_conditions, where_params)
         area_name_mapping = get_area_name_mapping()
-    
+
         self.area_code_combo.clear()
         self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
-    
+
         for code in area_codes:
             if code == "":
                 display_text = "-- Blank --"
             else:
                 display_name = area_name_mapping.get(code, code)
                 display_text = f"{display_name}" if display_name else code
-        
+
             self.area_code_combo.addItem(display_text)
             self.area_code_combo.setItemData(self.area_code_combo.count() - 1, code)
 
     def populate_ea_no(self):
         """เติมข้อมูล EA_NO dropdown"""
         where_conditions, where_params = self.build_where_conditions_up_to_area_code()
-    
+
         ea_nos = get_distinct_values("EA_NO", where_conditions, where_params)
-    
+
         self.ea_no_combo.clear()
         self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
-    
+
         for ea_no in ea_nos:
             display_text = "-- Blank --" if ea_no == "" else ea_no
             self.ea_no_combo.addItem(display_text)
@@ -1178,12 +1258,12 @@ class EditDataScreen(QWidget):
     def populate_vil_code(self):
         """เติมข้อมูล VilCode dropdown"""
         where_conditions, where_params = self.build_where_conditions_up_to_ea_no()
-    
+
         vil_codes = get_distinct_values("VilCode", where_conditions, where_params)
-    
+
         self.vil_code_combo.clear()
         self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
-    
+
         for vil_code in vil_codes:
             display_text = "-- Blank --" if vil_code == "" else vil_code
             self.vil_code_combo.addItem(display_text)
@@ -1192,12 +1272,12 @@ class EditDataScreen(QWidget):
     def populate_vil_name(self):
         """เติมข้อมูล VilName dropdown"""
         where_conditions, where_params = self.build_where_conditions_up_to_vil_code()
-    
+
         vil_names = get_distinct_values("VilName", where_conditions, where_params)
-    
+
         self.vil_name_combo.clear()
         self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
-    
+
         for vil_name in vil_names:
             display_text = "-- Blank --" if vil_name == "" else vil_name
             self.vil_name_combo.addItem(display_text)
@@ -1206,44 +1286,60 @@ class EditDataScreen(QWidget):
     def populate_building_number(self):
         """เติมข้อมูล BuildingNumber dropdown"""
         where_conditions, where_params = self.build_where_conditions_up_to_vil_name()
-    
-        building_numbers = get_distinct_values("BuildingNumber", where_conditions, where_params)
-    
+
+        building_numbers = get_distinct_values(
+            "BuildingNumber", where_conditions, where_params
+        )
+
         self.building_number_combo.clear()
         self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
-    
+
         for building_number in building_numbers:
             display_text = "-- Blank --" if building_number == "" else building_number
             self.building_number_combo.addItem(display_text)
-            self.building_number_combo.setItemData(self.building_number_combo.count() - 1, building_number)
+            self.building_number_combo.setItemData(
+                self.building_number_combo.count() - 1, building_number
+            )
 
     def populate_household_number(self):
         """เติมข้อมูล HouseholdNumber dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_building_number()
-    
-        household_numbers = get_distinct_values("HouseholdNumber", where_conditions, where_params)
-    
+        where_conditions, where_params = (
+            self.build_where_conditions_up_to_building_number()
+        )
+
+        household_numbers = get_distinct_values(
+            "HouseholdNumber", where_conditions, where_params
+        )
+
         self.household_number_combo.clear()
         self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
-    
+
         for household_number in household_numbers:
             display_text = "-- Blank --" if household_number == "" else household_number
             self.household_number_combo.addItem(display_text)
-            self.household_number_combo.setItemData(self.household_number_combo.count() - 1, household_number)
+            self.household_number_combo.setItemData(
+                self.household_number_combo.count() - 1, household_number
+            )
 
     def populate_household_member_number(self):
         """เติมข้อมูล HouseholdMemberNumber dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_household_number()
-    
-        member_numbers = get_distinct_values("HouseholdMemberNumber", where_conditions, where_params)
-    
+        where_conditions, where_params = (
+            self.build_where_conditions_up_to_household_number()
+        )
+
+        member_numbers = get_distinct_values(
+            "HouseholdMemberNumber", where_conditions, where_params
+        )
+
         self.household_member_number_combo.clear()
         self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
-    
+
         for member_number in member_numbers:
             display_text = "-- Blank --" if member_number == "" else member_number
             self.household_member_number_combo.addItem(display_text)
-            self.household_member_number_combo.setItemData(self.household_member_number_combo.count() - 1, member_number)
+            self.household_member_number_combo.setItemData(
+                self.household_member_number_combo.count() - 1, member_number
+            )
 
     def clear_area_code_and_below(self):
         """ล้าง AreaCode และ dropdown ข้างล่าง"""
@@ -1290,163 +1386,167 @@ class EditDataScreen(QWidget):
         """สร้าง WHERE conditions จนถึงระดับตำบล"""
         conditions = []
         params = []
-    
+
         codes = self.get_selected_codes()
         for key, value in codes.items():
             if value is not None:
                 conditions.append(f"[{key}] = ?")
                 params.append(value)
-    
+
         return " AND ".join(conditions) if conditions else None, params
 
     def build_where_conditions_up_to_area_code(self):
         """สร้าง WHERE conditions จนถึง AreaCode"""
         base_conditions, base_params = self.build_where_conditions_up_to_subdistrict()
-    
+
         area_code_value = self.get_selected_area_code()
         if area_code_value is not None:
             if area_code_value == "":
                 area_condition = "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')"
             else:
                 area_condition = "[AreaCode] = ?"
-            
+
             if base_conditions:
                 conditions = f"{base_conditions} AND {area_condition}"
             else:
                 conditions = area_condition
-        
+
             params = base_params.copy()
             if area_code_value != "":
                 params.append(area_code_value)
         else:
             conditions = base_conditions
             params = base_params
-    
+
         return conditions, params
 
     def build_where_conditions_up_to_ea_no(self):
         """สร้าง WHERE conditions จนถึง EA_NO"""
         base_conditions, base_params = self.build_where_conditions_up_to_area_code()
-    
+
         ea_no_value = self.get_selected_ea_no()
         if ea_no_value is not None:
             if ea_no_value == "":
-                ea_condition = "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')"
+                ea_condition = (
+                    "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')"
+                )
             else:
                 ea_condition = "[EA_NO] = ?"
-            
+
             if base_conditions:
                 conditions = f"{base_conditions} AND {ea_condition}"
             else:
                 conditions = ea_condition
-        
+
             params = base_params.copy()
             if ea_no_value != "":
                 params.append(ea_no_value)
         else:
             conditions = base_conditions
             params = base_params
-    
+
         return conditions, params
 
     def build_where_conditions_up_to_vil_code(self):
         """สร้าง WHERE conditions จนถึง VilCode"""
         base_conditions, base_params = self.build_where_conditions_up_to_ea_no()
-    
+
         vil_code_value = self.get_selected_vil_code()
         if vil_code_value is not None:
             if vil_code_value == "":
                 vil_condition = "([VilCode] IS NULL OR [VilCode] = '' OR LTRIM(RTRIM([VilCode])) = '')"
             else:
                 vil_condition = "[VilCode] = ?"
-            
+
             if base_conditions:
                 conditions = f"{base_conditions} AND {vil_condition}"
             else:
                 conditions = vil_condition
-        
+
             params = base_params.copy()
             if vil_code_value != "":
                 params.append(vil_code_value)
         else:
             conditions = base_conditions
             params = base_params
-    
+
         return conditions, params
 
     def build_where_conditions_up_to_vil_name(self):
         """สร้าง WHERE conditions จนถึง VilName"""
         base_conditions, base_params = self.build_where_conditions_up_to_vil_code()
-    
+
         vil_name_value = self.get_selected_vil_name()
         if vil_name_value is not None:
             if vil_name_value == "":
                 vil_name_condition = "([VilName] IS NULL OR [VilName] = '' OR LTRIM(RTRIM([VilName])) = '')"
             else:
                 vil_name_condition = "[VilName] = ?"
-            
+
             if base_conditions:
                 conditions = f"{base_conditions} AND {vil_name_condition}"
             else:
                 conditions = vil_name_condition
-        
+
             params = base_params.copy()
             if vil_name_value != "":
                 params.append(vil_name_value)
         else:
             conditions = base_conditions
             params = base_params
-    
+
         return conditions, params
 
     def build_where_conditions_up_to_building_number(self):
         """สร้าง WHERE conditions จนถึง BuildingNumber"""
         base_conditions, base_params = self.build_where_conditions_up_to_vil_name()
-    
+
         building_number_value = self.get_selected_building_number()
         if building_number_value is not None:
             if building_number_value == "":
                 building_condition = "([BuildingNumber] IS NULL OR [BuildingNumber] = '' OR LTRIM(RTRIM([BuildingNumber])) = '')"
             else:
                 building_condition = "[BuildingNumber] = ?"
-            
+
             if base_conditions:
                 conditions = f"{base_conditions} AND {building_condition}"
             else:
                 conditions = building_condition
-        
+
             params = base_params.copy()
             if building_number_value != "":
                 params.append(building_number_value)
         else:
             conditions = base_conditions
             params = base_params
-    
+
         return conditions, params
 
     def build_where_conditions_up_to_household_number(self):
         """สร้าง WHERE conditions จนถึง HouseholdNumber"""
-        base_conditions, base_params = self.build_where_conditions_up_to_building_number()
-    
+        base_conditions, base_params = (
+            self.build_where_conditions_up_to_building_number()
+        )
+
         household_number_value = self.get_selected_household_number()
         if household_number_value is not None:
             if household_number_value == "":
                 household_condition = "([HouseholdNumber] IS NULL OR [HouseholdNumber] = '' OR LTRIM(RTRIM([HouseholdNumber])) = '')"
             else:
                 household_condition = "[HouseholdNumber] = ?"
-            
+
             if base_conditions:
                 conditions = f"{base_conditions} AND {household_condition}"
             else:
                 conditions = household_condition
-        
+
             params = base_params.copy()
             if household_number_value != "":
                 params.append(household_number_value)
         else:
             conditions = base_conditions
             params = base_params
-    
+
         return conditions, params
 
     def get_selected_area_code(self):
@@ -1496,3 +1596,100 @@ class EditDataScreen(QWidget):
                 self.household_member_number_combo.currentIndex()
             )
         return None
+
+    def load_provinces_with_placeholder(self, reg_code=None):
+        """โหลดข้อมูลจังหวัดพร้อม placeholder"""
+        try:
+            self.province_combo.clear()
+            self.province_combo.addItem("-- เลือกจังหวัด --")
+
+            provinces = get_provinces_from_db(reg_code)
+            for province in provinces:
+                self.province_combo.addItem(province["display"])
+                self.province_combo.setItemData(
+                    self.province_combo.count() - 1, province["code"]
+                )
+
+        except Exception as e:
+            print(f"Error loading provinces: {e}")
+
+    def load_districts_with_placeholder(self, prov_code=None):
+        """โหลดข้อมูลอำเภอพร้อม placeholder"""
+        try:
+            self.district_combo.clear()
+            self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
+
+            districts = get_districts_from_db(prov_code)
+            for district in districts:
+                self.district_combo.addItem(district["display"])
+                self.district_combo.setItemData(
+                    self.district_combo.count() - 1, district["code"]
+                )
+
+        except Exception as e:
+            print(f"Error loading districts: {e}")
+
+    def load_subdistricts_with_placeholder(self, dist_code=None, prov_code=None):
+        """โหลดข้อมูลตำบลพร้อม placeholder"""
+        try:
+            self.subdistrict_combo.clear()
+            self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
+
+            subdistricts = get_subdistricts_from_db(dist_code, prov_code)
+            for subdistrict in subdistricts:
+                self.subdistrict_combo.addItem(subdistrict["display"])
+                self.subdistrict_combo.setItemData(
+                    self.subdistrict_combo.count() - 1, subdistrict["code"]
+                )
+
+        except Exception as e:
+            print(f"Error loading subdistricts: {e}")
+
+    def clear_province_and_below_without_placeholder(self):
+        """ล้างจังหวัดและ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.province_combo.clear()
+        self.clear_district_and_below_without_placeholder()
+
+    def clear_district_and_below_without_placeholder(self):
+        """ล้างอำเภอและ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.district_combo.clear()
+        self.clear_subdistrict_and_below_without_placeholder()
+
+    def clear_subdistrict_and_below_without_placeholder(self):
+        """ล้างตำบลและ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.subdistrict_combo.clear()
+        self.clear_area_code_and_below_without_placeholder()
+
+    def clear_area_code_and_below_without_placeholder(self):
+        """ล้าง AreaCode และ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.area_code_combo.clear()
+        self.clear_ea_no_and_below_without_placeholder()
+
+    def clear_ea_no_and_below_without_placeholder(self):
+        """ล้าง EA_NO และ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.ea_no_combo.clear()
+        self.clear_vil_code_and_below_without_placeholder()
+
+    def clear_vil_code_and_below_without_placeholder(self):
+        """ล้าง VilCode และ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.vil_code_combo.clear()
+        self.clear_vil_name_and_below_without_placeholder()
+
+    def clear_vil_name_and_below_without_placeholder(self):
+        """ล้าง VilName และ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.vil_name_combo.clear()
+        self.clear_building_number_and_below_without_placeholder()
+
+    def clear_building_number_and_below_without_placeholder(self):
+        """ล้าง BuildingNumber และ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.building_number_combo.clear()
+        self.clear_household_number_and_below_without_placeholder()
+
+    def clear_household_number_and_below_without_placeholder(self):
+        """ล้าง HouseholdNumber และ dropdown ข้างล่างโดยไม่มี placeholder"""
+        self.household_number_combo.clear()
+        self.clear_household_member_number_and_below_without_placeholder()
+
+    def clear_household_member_number_and_below_without_placeholder(self):
+        """ล้าง HouseholdMemberNumber dropdown โดยไม่มี placeholder"""
+        self.household_member_number_combo.clear()

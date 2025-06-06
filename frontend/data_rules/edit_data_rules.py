@@ -234,10 +234,21 @@ FIELD_VALIDATION_RULES_CONFIG = {
         "description": "ต้องเป็น 1-5 หรือ 9",
     },
     "NameInHouseholdRegisterOther": {
-        "type": "text",
-        "max_length": 2,
+        "type": "custom",
+        "allowed_values": (
+            ["10"]
+            + [str(i) for i in range(11, 20)]
+            + [str(i) for i in range(70, 78)]
+            + [str(i) for i in range(80, 87)]
+            + [str(i) for i in range(90, 97)]
+            + [str(i) for i in range(20, 28)]
+            + [str(i) for i in range(30, 50)]
+            + [str(i) for i in range(50, 59)]
+            + [str(i) for i in range(60, 68)]
+            + ["99"]
+        ),
         "allow_blank": True,
-        "description": "ข้อความได้สูงสุด 2 ตัวอักษร",
+        "description": "ต้องเป็นรหัสจังหวัดที่กำหนด",
     },
     "DurationOfResidence": {
         "type": "custom",

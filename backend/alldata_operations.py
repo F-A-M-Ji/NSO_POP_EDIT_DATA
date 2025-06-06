@@ -1,151 +1,257 @@
 import pyodbc
 import datetime
 
-from .db import get_connection
+from backend.db import get_connection
 
 
 def fetch_all_r_alldata_fields():
-    """Fetches all column names from r_alldata to know the complete structure."""
-    conn = None
+    """ดึงรายชื่อ column ทั้งหมดจากตาราง r_alldata_edit"""
     try:
-        conn = get_connection()
-        if not conn:
-            # print("Database Error: Cannot get r_alldata fields: No connection.")
+        connection = get_connection()
+        if not connection:
             return []
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT TOP 0 * FROM r_alldata")
-            return [col[0] for col in cursor.description]
-    except pyodbc.Error as e:
-        # print(f"Database Error: Error fetching r_alldata schema: {e}")
+        
+        cursor = connection.cursor()
+        # เปลี่ยนจาก r_alldata เป็น r_alldata_edit
+        cursor.execute("""
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'r_alldata_edit'
+            ORDER BY ORDINAL_POSITION
+        """)
+        
+        columns = [row[0] for row in cursor.fetchall()]
+        connection.close()
+        return columns
+        
+    except Exception as e:
+        print(f"Error fetching r_alldata_edit fields: {e}")
         return []
-    finally:
-        if conn:
-            conn.close()
 
 
-def search_r_alldata(codes, all_db_fields_r_alldata, logical_pk_fields):
-    """
-    Searches data from r_alldata_edit table only based on provided codes.
-    """
-    sql_conditions = []
-    params = []
-
-    if codes.get("RegCode") is not None:
-        if codes["RegCode"] == 0:
-            sql_conditions.append(
-                "(rae.RegCode = ? AND rae.RegCode IS NOT NULL AND rae.RegCode <> '')"
-            )
-        else:
-            sql_conditions.append("rae.RegCode = ?")
-        params.append(codes["RegCode"])
-
-    if codes["ProvCode"] is not None:
-        sql_conditions.append("rae.ProvCode = ?")
-        params.append(codes["ProvCode"])
-
-    if codes["DistCode"] is not None:
-        sql_conditions.append("rae.DistCode = ?")
-        params.append(codes["DistCode"])
-
-    if codes["SubDistCode"] is not None:
-        sql_conditions.append("rae.SubDistCode = ?")
-        params.append(codes["SubDistCode"])
-
-    if not sql_conditions:
-        return [], [], "No search criteria provided."
-
-    # เปลี่ยนให้ดึงจาก r_alldata_edit เท่านั้น
-    select_clauses = []
-    for field in all_db_fields_r_alldata:
-        quoted_field = f"[{field}]"
-        select_clauses.append(f"rae.{quoted_field}")
-
-    # เพิ่ม fullname และ time_edit
-    select_clauses.append("rae.fullname")
-    select_clauses.append("rae.time_edit")
-
-    select_sql_part = ", ".join(select_clauses)
-
-    query = f"""
-    SELECT {select_sql_part}
-    FROM r_alldata_edit rae
-    """
-
-    if sql_conditions:
-        query += " WHERE " + " AND ".join(sql_conditions)
-    query += " ORDER BY rae.RegName, rae.ProvName, rae.DistName, rae.SubDistName"
-
-    conn = None
+def search_r_alldata(location_codes, all_db_fields, logical_pk_fields):
+    """ค้นหาข้อมูลจากตาราง r_alldata_edit ตามเงื่อนไขที่กำหนด"""
     try:
-        conn = get_connection()
-        if not conn:
-            return [], [], "Cannot connect to the database."
-
-        with conn.cursor() as cursor:
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-            db_column_names = [col[0] for col in cursor.description]
-            return results, db_column_names, None
-
-    except pyodbc.Error as e:
-        return [], [], f"Error during search: {e}"
-    finally:
-        if conn:
-            conn.close()
-
-
-def save_edited_r_alldata_rows(list_of_data_to_save_dicts, all_db_fields_r_alldata):
-    """
-    Updates multiple edited rows in the r_alldata_edit table.
-    Each dictionary in list_of_data_to_save_dicts should be a complete record
-    for one row to be updated, including 'fullname' and 'time_edit'.
-    """
-    conn = None
-    updated_rows_count = 0
-
-    LOGICAL_PK_FIELDS = ["EA_Code_15", "Building_No", "Household_No", "Population_No"]
-
-    if not list_of_data_to_save_dicts:
-        return 0, "No data provided to save."
-
-    # เตรียม field สำหรับ UPDATE (ไม่รวม PK)
-    update_fields = [
-        col for col in all_db_fields_r_alldata if col not in LOGICAL_PK_FIELDS
-    ]
-    update_fields += ["fullname", "time_edit"]
-
-    set_clause = ", ".join([f"[{field}] = ?" for field in update_fields])
-    where_clause = " AND ".join([f"[{pk}] = ?" for pk in LOGICAL_PK_FIELDS])
-
-    sql_update = f"UPDATE r_alldata_edit SET {set_clause} WHERE {where_clause}"
-
-    try:
-        conn = get_connection()
-        if not conn:
-            return 0, "Database connection failed for updating."
-
-        with conn.cursor() as cursor:
-            for data_to_save in list_of_data_to_save_dicts:
-                update_values = [data_to_save.get(field) for field in update_fields]
-                pk_values = [data_to_save.get(pk) for pk in LOGICAL_PK_FIELDS]
-                all_values = update_values + pk_values
-                cursor.execute(sql_update, all_values)
-                updated_rows_count += cursor.rowcount
-
-        if updated_rows_count > 0:
-            conn.commit()
-            return updated_rows_count, None
+        connection = get_connection()
+        if not connection:
+            return [], [], "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"
+        
+        cursor = connection.cursor()
+        
+        # สร้าง WHERE clause
+        where_conditions = []
+        params = []
+        
+        for key, value in location_codes.items():
+            if value is not None:
+                # แปลง numpy types เป็น native Python types
+                converted_value = convert_to_native_type(value)
+                
+                if converted_value is None or converted_value == "" or converted_value == "blank":
+                    # รองรับการค้นหาค่า blank/null
+                    where_conditions.append(f"([{key}] IS NULL OR [{key}] = '' OR LTRIM(RTRIM([{key}])) = '')")
+                else:
+                    where_conditions.append(f"[{key}] = ?")
+                    params.append(converted_value)
+        
+        # เปลี่ยนจาก r_alldata เป็น r_alldata_edit
+        base_query = f"SELECT * FROM [r_alldata_edit]"
+        
+        if where_conditions:
+            query = f"{base_query} WHERE {' AND '.join(where_conditions)}"
         else:
-            return 0, "No rows were actually updated."
+            query = base_query
+        
+        # เพิ่ม ORDER BY สำหรับ logical primary key fields
+        if logical_pk_fields:
+            order_fields = [f"[{field}]" for field in logical_pk_fields if field in all_db_fields]
+            if order_fields:
+                query += f" ORDER BY {', '.join(order_fields)}"
+        
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+        connection.close()
+        return results, all_db_fields, None
+        
+    except Exception as e:
+        error_msg = f"Error searching r_alldata_edit: {str(e)}"
+        print(error_msg)
+        return [], [], error_msg
 
-    except pyodbc.Error as e:
-        if conn:
-            conn.rollback()
-        return 0, f"Database error during update: {e}"
-    except Exception as ex:
-        if conn:
-            conn.rollback()
-        return 0, f"General error during update: {ex}"
-    finally:
-        if conn:
-            conn.close()
+
+
+def save_edited_r_alldata_rows(records_to_save, all_db_fields):
+    """บันทึกข้อมูลที่แก้ไขลงในตาราง r_alldata_edit"""
+    if not records_to_save:
+        return 0, "ไม่มีข้อมูลที่จะบันทึก"
+    
+    try:
+        connection = get_connection()
+        if not connection:
+            return 0, "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"
+        
+        cursor = connection.cursor()
+        saved_count = 0
+        
+        for record in records_to_save:
+            # สร้าง UPDATE statement สำหรับ r_alldata_edit
+            update_fields = []
+            update_values = []
+            where_conditions = []
+            where_values = []
+            
+            # ใช้ logical primary key สำหรับ WHERE clause
+            pk_fields = ["EA_Code_15", "Building_No", "Household_No", "Population_No"]
+            
+            for field_name, field_value in record.items():
+                # แปลง numpy types เป็น native Python types
+                converted_value = convert_to_native_type(field_value)
+                
+                if field_name in pk_fields:
+                    where_conditions.append(f"[{field_name}] = ?")
+                    where_values.append(converted_value)
+                elif field_name in all_db_fields:
+                    update_fields.append(f"[{field_name}] = ?")
+                    update_values.append(converted_value)
+            
+            if not where_conditions or not update_fields:
+                continue
+            
+            # เปลี่ยนจาก r_alldata เป็น r_alldata_edit
+            query = f"""
+                UPDATE [r_alldata_edit] 
+                SET {', '.join(update_fields)} 
+                WHERE {' AND '.join(where_conditions)}
+            """
+            
+            cursor.execute(query, update_values + where_values)
+            
+            if cursor.rowcount > 0:
+                saved_count += 1
+        
+        connection.commit()
+        connection.close()
+        
+        return saved_count, None
+        
+    except Exception as e:
+        error_msg = f"Error saving to r_alldata_edit: {str(e)}"
+        print(error_msg)
+        return 0, error_msg
+    
+
+def convert_to_native_type(value):
+    """แปลงค่า numpy types เป็น native Python types"""
+    if value is None:
+        return None
+    
+    # แปลง numpy types เป็น native Python types
+    if hasattr(value, 'item'):  # numpy scalar types have .item() method
+        return value.item()
+    elif str(type(value)).startswith('<class \'numpy.'):
+        # สำหรับ numpy types อื่นๆ
+        try:
+            return value.item()
+        except (AttributeError, ValueError):
+            return str(value)
+    else:
+        return value
+
+
+def get_distinct_values(field_name, where_conditions=None, where_params=None, include_blank_separately=False):
+    """ดึงค่าที่ไม่ซ้ำจากฟิลด์ที่กำหนดในตาราง r_alldata_edit"""
+    try:
+        connection = get_connection()
+        if not connection:
+            return []
+        
+        cursor = connection.cursor()
+        
+        # สร้าง query สำหรับดึงค่าที่ไม่ซ้ำ รวมถึงค่า blank
+        base_query = f"""
+            SELECT DISTINCT [{field_name}] 
+            FROM [r_alldata_edit] 
+        """
+        
+        if where_conditions:
+            query = f"{base_query} WHERE {where_conditions}"
+            # แปลง numpy types เป็น native Python types
+            converted_params = [convert_to_native_type(param) for param in (where_params or [])]
+            cursor.execute(query, converted_params)
+        else:
+            cursor.execute(base_query)
+        
+        results = cursor.fetchall()
+        values = []
+        has_blank = False
+        
+        for row in results:
+            value = row[0]
+            if value is None or str(value).strip() == "":
+                has_blank = True
+            else:
+                # แปลงเป็น native type ก่อนแปลงเป็น string
+                converted_value = convert_to_native_type(value)
+                clean_value = str(converted_value).strip()
+                if clean_value and clean_value not in values:
+                    values.append(clean_value)
+        
+        # เรียงลำดับค่าที่ไม่ใช่ blank
+        values.sort()
+        
+        # เพิ่มค่า blank ไว้ท้ายสุด
+        if has_blank:
+            values.append("")
+        
+        connection.close()
+        return values
+        
+    except Exception as e:
+        print(f"Error getting distinct values for {field_name}: {e}")
+        return []
+
+
+def get_area_name_mapping():
+    """ดึงการเชื่อมโยง AreaCode กับ AreaName จากตาราง r_alldata_edit"""
+    try:
+        connection = get_connection()
+        if not connection:
+            return {}
+        
+        cursor = connection.cursor()
+        
+        # ดึง mapping ระหว่าง AreaCode และ AreaName
+        cursor.execute("""
+            SELECT DISTINCT [AreaCode], [AreaName] 
+            FROM [r_alldata_edit] 
+            WHERE [AreaCode] IS NOT NULL OR [AreaName] IS NOT NULL
+        """)
+        
+        mapping = {}
+        results = cursor.fetchall()
+        
+        for row in results:
+            area_code = convert_to_native_type(row[0])
+            area_name = convert_to_native_type(row[1])
+            
+            # จัดการค่า blank
+            code_key = "" if area_code is None else str(area_code).strip()
+            name_value = "" if area_name is None else str(area_name).strip()
+            
+            mapping[code_key] = name_value
+        
+        # เพิ่มค่าเริ่มต้นสำหรับค่าที่อาจจะไม่มีใน database
+        if "" not in mapping:
+            mapping[""] = ""
+        if "1" not in mapping:
+            mapping["1"] = "ในเขตเทศบาล"
+        if "2" not in mapping:
+            mapping["2"] = "นอกเขตเทศบาล"
+        
+        connection.close()
+        return mapping
+        
+    except Exception as e:
+        print(f"Error getting area name mapping: {e}")
+        return {"": "", "1": "ในเขตเทศบาล", "2": "นอกเขตเทศบาล"}

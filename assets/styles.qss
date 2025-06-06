@@ -183,10 +183,17 @@ QPushButton#secondaryButton:pressed {
 }
 
 /* Frames */
-QFrame#loginFrame, QFrame#contentFrame {
+QFrame#loginFrame {
     background-color: white;
     border-radius: 10px;
     padding: 20px; /* <--- ลดจาก 30px เป็น 20px หรือตามต้องการ */
+    /* border: 1px solid #DEE2E6; */ /* ถ้าต้องการเส้นขอบจางๆ */
+}
+
+QFrame#contentFrame {
+    background-color: white;
+    border-radius: 10px;
+    padding: 5px; /* <--- ลดจาก 30px เป็น 20px หรือตามต้องการ */
     /* border: 1px solid #DEE2E6; */ /* ถ้าต้องการเส้นขอบจางๆ */
 }
 

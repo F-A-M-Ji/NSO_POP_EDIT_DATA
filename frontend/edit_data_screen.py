@@ -26,6 +26,8 @@ from backend.alldata_operations import (
     fetch_all_r_alldata_fields,
     search_r_alldata,
     save_edited_r_alldata_rows,
+    get_distinct_values,
+    get_area_name_mapping,
 )
 from frontend.widgets.multi_line_header import MultiLineHeaderView
 from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
@@ -36,7 +38,7 @@ from frontend.data_rules.edit_data_rules import (
     LOGICAL_PK_FIELDS_CONFIG,
     NON_EDITABLE_FIELDS_CONFIG,
     FIELD_VALIDATION_RULES_CONFIG,
-    update_rules_from_excel_data
+    update_rules_from_excel_data,
 )
 from frontend.data_rules.edit_data_validation import (
     validate_field_value,
@@ -94,7 +96,7 @@ class EditDataScreen(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(5, 5, 5, 5)
 
         header_layout = QHBoxLayout()
         header_label = QLabel("ระบบแก้ไขข้อมูล สปค. 68")
@@ -103,12 +105,8 @@ class EditDataScreen(QWidget):
         header_layout.addStretch()
         self.user_fullname_label = QLabel("User: N/A")
         self.user_fullname_label.setObjectName("userFullnameLabel")
-        # self.user_fullname_label.setStyleSheet(
-        #     "font-weight: bold; color: #2196F3; margin-right: 5px;"
-        # )
         header_layout.addWidget(self.user_fullname_label)
         spacer = QLabel("|")
-        # spacer.setStyleSheet("color: #bdbdbd; margin-left: 5px; margin-right: 5px;")
         header_layout.addWidget(spacer)
         logout_button = QPushButton("ออกจากระบบ")
         logout_button.setObjectName("secondaryButton")
@@ -125,10 +123,11 @@ class EditDataScreen(QWidget):
         search_section = QFrame()
         search_section.setObjectName("searchSection")
         search_layout = QVBoxLayout(search_section)
-        search_title = QLabel("ค้นหาข้อมูลตามพื้นที่")
+        search_title = QLabel("ค้นหาข้อมูล")
         search_title.setObjectName("sectionTitle")
         search_layout.addWidget(search_title)
-        dropdown_layout = QHBoxLayout()
+
+        search_row1_layout = QHBoxLayout()
 
         region_layout = QVBoxLayout()
         region_label = QLabel("ภาค:")
@@ -137,7 +136,7 @@ class EditDataScreen(QWidget):
         self.region_combo.currentIndexChanged.connect(self.on_region_changed)
         region_layout.addWidget(region_label)
         region_layout.addWidget(self.region_combo)
-        dropdown_layout.addLayout(region_layout)
+        search_row1_layout.addLayout(region_layout)
 
         province_layout = QVBoxLayout()
         province_label = QLabel("จังหวัด:")
@@ -146,7 +145,7 @@ class EditDataScreen(QWidget):
         self.province_combo.currentIndexChanged.connect(self.on_province_changed)
         province_layout.addWidget(province_label)
         province_layout.addWidget(self.province_combo)
-        dropdown_layout.addLayout(province_layout)
+        search_row1_layout.addLayout(province_layout)
 
         district_layout = QVBoxLayout()
         district_label = QLabel("อำเภอ/เขต:")
@@ -155,7 +154,7 @@ class EditDataScreen(QWidget):
         self.district_combo.currentIndexChanged.connect(self.on_district_changed)
         district_layout.addWidget(district_label)
         district_layout.addWidget(self.district_combo)
-        dropdown_layout.addLayout(district_layout)
+        search_row1_layout.addLayout(district_layout)
 
         subdistrict_layout = QVBoxLayout()
         subdistrict_label = QLabel("ตำบล/แขวง:")
@@ -164,25 +163,138 @@ class EditDataScreen(QWidget):
         self.subdistrict_combo.currentIndexChanged.connect(self.on_subdistrict_changed)
         subdistrict_layout.addWidget(subdistrict_label)
         subdistrict_layout.addWidget(self.subdistrict_combo)
-        dropdown_layout.addLayout(subdistrict_layout)
-        search_layout.addLayout(dropdown_layout)
+        search_row1_layout.addLayout(subdistrict_layout)
 
-        search_buttons_layout = QHBoxLayout()
-        search_buttons_layout.addStretch()
+        # เพิ่ม dropdown สำหรับ AreaCode
+        area_code_layout = QVBoxLayout()
+        area_code_label = QLabel("เขตการปกครอง:")
+        self.area_code_combo = QComboBox()
+        self.area_code_combo.setObjectName("searchComboBox")
+        self.area_code_combo.currentIndexChanged.connect(self.on_area_code_changed)
+        area_code_layout.addWidget(area_code_label)
+        area_code_layout.addWidget(self.area_code_combo)
+        search_row1_layout.addLayout(area_code_layout)
+
+        # เพิ่ม dropdown สำหรับ EA_NO
+        ea_no_layout = QVBoxLayout()
+        ea_no_label = QLabel("เขตแจงนับ:")
+        self.ea_no_combo = QComboBox()
+        self.ea_no_combo.setObjectName("searchComboBox")
+        self.ea_no_combo.currentIndexChanged.connect(self.on_ea_no_changed)
+        ea_no_layout.addWidget(ea_no_label)
+        ea_no_layout.addWidget(self.ea_no_combo)
+        search_row1_layout.addLayout(ea_no_layout)
+
+        search_layout.addLayout(search_row1_layout)
+
+        # ชั้นที่ 2
+        search_row2_layout = QHBoxLayout()
+
+        # เพิ่ม dropdown สำหรับ VilCode
+        vil_code_layout = QVBoxLayout()
+        vil_code_label = QLabel("หมู่ที่:")
+        self.vil_code_combo = QComboBox()
+        self.vil_code_combo.setObjectName("searchComboBox")
+        self.vil_code_combo.currentIndexChanged.connect(self.on_vil_code_changed)
+        vil_code_layout.addWidget(vil_code_label)
+        vil_code_layout.addWidget(self.vil_code_combo)
+        search_row2_layout.addLayout(vil_code_layout)
+
+        # เพิ่ม dropdown สำหรับ VilName
+        vil_name_layout = QVBoxLayout()
+        vil_name_label = QLabel("ชื่อหมู่บ้าน:")
+        self.vil_name_combo = QComboBox()
+        self.vil_name_combo.setObjectName("searchComboBox")
+        self.vil_name_combo.currentIndexChanged.connect(self.on_vil_name_changed)
+        vil_name_layout.addWidget(vil_name_label)
+        vil_name_layout.addWidget(self.vil_name_combo)
+        search_row2_layout.addLayout(vil_name_layout)
+
+        # เพิ่ม dropdown สำหรับ BuildingNumber
+        building_number_layout = QVBoxLayout()
+        building_number_label = QLabel("ลำดับที่สิ่งปลูกสร้าง:")
+        self.building_number_combo = QComboBox()
+        self.building_number_combo.setObjectName("searchComboBox")
+        self.building_number_combo.currentIndexChanged.connect(
+            self.on_building_number_changed
+        )
+        building_number_layout.addWidget(building_number_label)
+        building_number_layout.addWidget(self.building_number_combo)
+        search_row2_layout.addLayout(building_number_layout)
+
+        # เพิ่ม dropdown สำหรับ HouseholdNumber
+        household_number_layout = QVBoxLayout()
+        household_number_label = QLabel("ลำดับที่ครัวเรือน:")
+        self.household_number_combo = QComboBox()
+        self.household_number_combo.setObjectName("searchComboBox")
+        self.household_number_combo.currentIndexChanged.connect(
+            self.on_household_number_changed
+        )
+        household_number_layout.addWidget(household_number_label)
+        household_number_layout.addWidget(self.household_number_combo)
+        search_row2_layout.addLayout(household_number_layout)
+
+        # เพิ่ม dropdown สำหรับ HouseholdMemberNumber
+        household_member_number_layout = QVBoxLayout()
+        household_member_number_label = QLabel("ลำดับที่สมาชิกในครัวเรือน:")
+        self.household_member_number_combo = QComboBox()
+        self.household_member_number_combo.setObjectName("searchComboBox")
+        self.household_member_number_combo.currentIndexChanged.connect(
+            self.on_household_member_number_changed
+        )
+        household_member_number_layout.addWidget(household_member_number_label)
+        household_member_number_layout.addWidget(self.household_member_number_combo)
+        search_row2_layout.addLayout(household_member_number_layout)
+
+        buttons_layout = QVBoxLayout()
+        buttons_label = QLabel("")  # เว้นพื้นที่สำหรับ label เหมือน dropdown อื่นๆ
+        buttons_layout.addWidget(buttons_label)
+
+        buttons_container = QHBoxLayout()
         self.search_button = QPushButton("ค้นหา")
         self.search_button.setObjectName("primaryButton")
         self.search_button.setCursor(Qt.PointingHandCursor)
         self.search_button.clicked.connect(self.search_data)
         self.search_button.setFixedWidth(120)
-        search_buttons_layout.addWidget(self.search_button)
+        self.search_button.setFixedHeight(20)  # ให้สูงเท่า dropdown
+        buttons_container.addWidget(self.search_button)
+
         self.clear_button = QPushButton("ล้าง")
         self.clear_button.setObjectName("secondaryButton")
         self.clear_button.setCursor(Qt.PointingHandCursor)
         self.clear_button.clicked.connect(self.clear_search)
         self.clear_button.setFixedWidth(120)
-        search_buttons_layout.addWidget(self.clear_button)
-        search_layout.addLayout(search_buttons_layout)
+        self.clear_button.setFixedHeight(20)  # ให้สูงเท่า dropdown
+        buttons_container.addWidget(self.clear_button)
+
+        # สร้าง widget container เพื่อให้ปุ่มอยู่ในตำแหน่งล่าง
+        buttons_widget = QWidget()
+        buttons_widget.setLayout(buttons_container)
+        buttons_layout.addWidget(buttons_widget)
+
+        search_row2_layout.addLayout(buttons_layout)
+
+        # กำหนด minimum width ให้ dropdown ทั้งหมด
+        min_width = 150
+
+        # บรรทัดแรก
+        self.region_combo.setMinimumWidth(min_width)
+        self.province_combo.setMinimumWidth(min_width)
+        self.district_combo.setMinimumWidth(min_width)
+        self.subdistrict_combo.setMinimumWidth(min_width)
+        self.area_code_combo.setMinimumWidth(min_width)
+        self.ea_no_combo.setMinimumWidth(min_width)
+
+        # บรรทัดที่สอง
+        self.vil_code_combo.setMinimumWidth(min_width)
+        self.vil_name_combo.setMinimumWidth(min_width)
+        self.building_number_combo.setMinimumWidth(min_width)
+        self.household_number_combo.setMinimumWidth(min_width)
+        self.household_member_number_combo.setMinimumWidth(min_width)
+
         content_layout.addWidget(search_section)
+
+        search_layout.addLayout(search_row2_layout)
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
@@ -250,6 +362,7 @@ class EditDataScreen(QWidget):
 
         # === เพิ่มบรรทัดนี้เพื่อตรึงคอลัมน์แรก ===
         # self.results_table.setFixedColumnCount(1)
+        # self.results_table.setColumnFrozen(0, True)
         # =======================================
 
         from frontend.widgets.multi_line_header import (
@@ -497,8 +610,8 @@ class EditDataScreen(QWidget):
 
     def search_data(self):
         """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
-
-        # ตรวจสอบว่ามีการแก้ไขที่ยังไม่ได้บันทึกหรือไม่
+    
+        # ตรวจสอบการแก้ไขที่ยังไม่ได้บันทึก (เหมือนเดิม)
         if self.edited_items:
             reply = QMessageBox.question(
                 self,
@@ -510,42 +623,53 @@ class EditDataScreen(QWidget):
             )
 
             if reply == QMessageBox.Save:
-                # บันทึกก่อนค้นหา
                 self.execute_save_edits()
-                if self.edited_items:  # ถ้ายังมีการแก้ไขอยู่ แสดงว่าบันทึกไม่สำเร็จ
+                if self.edited_items:
                     return
             elif reply == QMessageBox.Cancel:
-                # ยกเลิกการค้นหา
                 return
-            # ถ้าเลือก Discard จะดำเนินการค้นหาต่อไป
 
         if not self._all_db_fields_r_alldata:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
             if not self._all_db_fields_r_alldata:
                 show_error_message(
-                    self, "Error", "โครงสร้างตาราง r_alldata ไม่พร้อมใช้งาน ไม่สามารถค้นหาได้"
+                    self, "Error", "โครงสร้างตาราง r_alldata_edit ไม่พร้อมใช้งาน ไม่สามารถค้นหาได้"
                 )
                 return
 
-        codes = self.get_selected_codes()
-        processed_codes = codes.copy()
-        if processed_codes["RegCode"] is not None:
-            processed_codes["RegCode"] = int(processed_codes["RegCode"])
-        if processed_codes["ProvCode"] is not None:
-            processed_codes["ProvCode"] = int(processed_codes["ProvCode"])
-        if processed_codes["DistCode"] is not None:
-            processed_codes["DistCode"] = int(processed_codes["DistCode"])
-        if processed_codes["SubDistCode"] is not None:
-            processed_codes["SubDistCode"] = int(processed_codes["SubDistCode"])
+        # รวมเงื่อนไขการค้นหาทั้งหมด
+        search_conditions = {}
+    
+        # เงื่อนไขจาก location (เดิม)
+        location_codes = self.get_selected_codes()
+        search_conditions.update(location_codes)
+    
+        # เงื่อนไขใหม่
+        additional_conditions = {
+            "AreaCode": self.get_selected_area_code(),
+            "EA_NO": self.get_selected_ea_no(),
+            "VilCode": self.get_selected_vil_code(),
+            "VilName": self.get_selected_vil_name(),
+            "BuildingNumber": self.get_selected_building_number(),
+            "HouseholdNumber": self.get_selected_household_number(),
+            "HouseholdMemberNumber": self.get_selected_household_member_number(),
+        }
+    
+        # เพิ่มเงื่อนไขที่มีการเลือก
+        for key, value in additional_conditions.items():
+            if value is not None:
+                search_conditions[key] = value  # รวมทั้งค่า blank ("")
 
-        if all(value is None for value in processed_codes.values()):
+        # ตรวจสอบว่ามีเงื่อนไขการค้นหาหรือไม่
+        if all(value is None for value in search_conditions.values()):
             show_error_message(
                 self, "Search Error", "กรุณาเลือกเงื่อนไขในการค้นหาอย่างน้อยหนึ่งรายการ"
             )
             return
 
+        # ค้นหาข้อมูล
         results, db_cols, error_msg = search_r_alldata(
-            processed_codes, self._all_db_fields_r_alldata, self.LOGICAL_PK_FIELDS
+            search_conditions, self._all_db_fields_r_alldata, self.LOGICAL_PK_FIELDS
         )
 
         if error_msg:
@@ -555,11 +679,8 @@ class EditDataScreen(QWidget):
             return
 
         self.db_column_names = db_cols
-
         self.edited_items.clear()
-        # self.save_edits_button.setEnabled(False)
         self.update_save_button_state()
-
         self.display_results(results)
 
     def display_results(self, results_tuples):
@@ -788,7 +909,9 @@ class EditDataScreen(QWidget):
 
     def reset_screen_state(self):
         self.region_combo.setCurrentIndex(0)
+        self.clear_area_code_and_below()  # เพิ่มบรรทัดนี้
 
+        # ส่วนที่เหลือเหมือนเดิม
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -800,9 +923,8 @@ class EditDataScreen(QWidget):
         self.filtered_data_cache.clear()
         self.db_column_names = []
         self.edited_items.clear()
-        self.active_filters.clear()  # ล้างฟิลเตอร์
+        self.active_filters.clear()
 
-        # ล้างฟิลเตอร์ใน header
         if hasattr(self, "header"):
             self.header.clear_all_filters()
 
@@ -812,8 +934,13 @@ class EditDataScreen(QWidget):
             self.user_fullname_label.setText("User: N/A")
 
     def clear_search(self):
+        # ล้าง dropdown เดิม
         self.region_combo.setCurrentIndex(0)
 
+        # ล้าง dropdown ใหม่
+        self.clear_area_code_and_below()
+
+        # ส่วนที่เหลือเหมือนเดิม
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -825,9 +952,8 @@ class EditDataScreen(QWidget):
         self.filtered_data_cache.clear()
         self.db_column_names = []
         self.edited_items.clear()
-        self.active_filters.clear()  # ล้างฟิลเตอร์
+        self.active_filters.clear()
 
-        # ล้างฟิลเตอร์ใน header
         if hasattr(self, "header"):
             self.header.clear_all_filters()
 
@@ -964,6 +1090,71 @@ class EditDataScreen(QWidget):
         self.subdistrict_combo.blockSignals(False)
 
     def on_subdistrict_changed(self, index):
+        """เมื่อเปลี่ยนตำบล ให้ populate area code เสมอ"""
+        self.area_code_combo.blockSignals(True)
+        self.clear_area_code_and_below()
+    
+        # Populate area code แม้ว่าจะไม่เลือกตำบล (index = 0) ก็ตาม
+        self.populate_area_code()
+    
+        self.area_code_combo.blockSignals(False)
+
+    def on_area_code_changed(self, index):
+        """เมื่อเปลี่ยน area code ให้ populate EA_NO เสมอ"""
+        self.ea_no_combo.blockSignals(True)
+        self.clear_ea_no_and_below()
+    
+        # Populate EA_NO แม้ว่าจะไม่เลือก area code (index = 0) หรือเลือก blank ก็ตาม
+        self.populate_ea_no()
+    
+        self.ea_no_combo.blockSignals(False)
+
+    def on_ea_no_changed(self, index):
+        """เมื่อเปลี่ยน EA_NO ให้ populate VilCode เสมอ"""
+        self.vil_code_combo.blockSignals(True)
+        self.clear_vil_code_and_below()
+    
+        self.populate_vil_code()
+    
+        self.vil_code_combo.blockSignals(False)
+
+    def on_vil_code_changed(self, index):
+        """เมื่อเปลี่ยน VilCode ให้ populate VilName เสมอ"""
+        self.vil_name_combo.blockSignals(True)
+        self.clear_vil_name_and_below()
+    
+        self.populate_vil_name()
+    
+        self.vil_name_combo.blockSignals(False)
+
+    def on_vil_name_changed(self, index):
+        """เมื่อเปลี่ยน VilName ให้ populate BuildingNumber เสมอ"""
+        self.building_number_combo.blockSignals(True)
+        self.clear_building_number_and_below()
+    
+        self.populate_building_number()
+    
+        self.building_number_combo.blockSignals(False)
+
+    def on_building_number_changed(self, index):
+        """เมื่อเปลี่ยน BuildingNumber ให้ populate HouseholdNumber เสมอ"""
+        self.household_number_combo.blockSignals(True)
+        self.clear_household_number_and_below()
+    
+        self.populate_household_number()
+    
+        self.household_number_combo.blockSignals(False)
+
+    def on_household_number_changed(self, index):
+        """เมื่อเปลี่ยน HouseholdNumber ให้ populate HouseholdMemberNumber เสมอ"""
+        self.household_member_number_combo.blockSignals(True)
+        self.clear_household_member_number_and_below()
+    
+        self.populate_household_member_number()
+    
+        self.household_member_number_combo.blockSignals(False)
+
+    def on_household_member_number_changed(self, index):
         pass
 
     def get_selected_codes(self):
@@ -1016,3 +1207,366 @@ class EditDataScreen(QWidget):
                 codes["SubDistCode"] = df_filtered["SubDistCode"].iloc[0]
 
         return codes
+
+    def populate_area_code(self):
+        """เติมข้อมูล AreaCode dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_subdistrict()
+    
+        # ดึงข้อมูลทั้งหมด แม้ไม่มี where_conditions
+        area_codes = get_distinct_values("AreaCode", where_conditions, where_params)
+        area_name_mapping = get_area_name_mapping()
+    
+        self.area_code_combo.clear()
+        self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
+    
+        for code in area_codes:
+            if code == "":
+                display_text = "-- Blank --"
+            else:
+                display_name = area_name_mapping.get(code, code)
+                display_text = f"{display_name}" if display_name else code
+        
+            self.area_code_combo.addItem(display_text)
+            # เก็บค่า AreaCode ไว้ใน userData
+            self.area_code_combo.setItemData(self.area_code_combo.count() - 1, code)
+
+    def populate_ea_no(self):
+        """เติมข้อมูล EA_NO dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_area_code()
+    
+        ea_nos = get_distinct_values("EA_NO", where_conditions, where_params)
+    
+        self.ea_no_combo.clear()
+        self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
+    
+        for ea_no in ea_nos:
+            display_text = "-- Blank --" if ea_no == "" else ea_no
+            self.ea_no_combo.addItem(display_text)
+            self.ea_no_combo.setItemData(self.ea_no_combo.count() - 1, ea_no)
+
+    def populate_vil_code(self):
+        """เติมข้อมูล VilCode dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_ea_no()
+    
+        vil_codes = get_distinct_values("VilCode", where_conditions, where_params)
+    
+        self.vil_code_combo.clear()
+        self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
+    
+        for vil_code in vil_codes:
+            display_text = "-- Blank --" if vil_code == "" else vil_code
+            self.vil_code_combo.addItem(display_text)
+            self.vil_code_combo.setItemData(self.vil_code_combo.count() - 1, vil_code)
+
+    def populate_vil_name(self):
+        """เติมข้อมูล VilName dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_vil_code()
+    
+        vil_names = get_distinct_values("VilName", where_conditions, where_params)
+    
+        self.vil_name_combo.clear()
+        self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
+    
+        for vil_name in vil_names:
+            display_text = "-- Blank --" if vil_name == "" else vil_name
+            self.vil_name_combo.addItem(display_text)
+            self.vil_name_combo.setItemData(self.vil_name_combo.count() - 1, vil_name)
+
+    def populate_building_number(self):
+        """เติมข้อมูล BuildingNumber dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_vil_name()
+    
+        building_numbers = get_distinct_values("BuildingNumber", where_conditions, where_params)
+    
+        self.building_number_combo.clear()
+        self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
+    
+        for building_number in building_numbers:
+            display_text = "-- Blank --" if building_number == "" else building_number
+            self.building_number_combo.addItem(display_text)
+            self.building_number_combo.setItemData(self.building_number_combo.count() - 1, building_number)
+
+    def populate_household_number(self):
+        """เติมข้อมูล HouseholdNumber dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_building_number()
+    
+        household_numbers = get_distinct_values("HouseholdNumber", where_conditions, where_params)
+    
+        self.household_number_combo.clear()
+        self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
+    
+        for household_number in household_numbers:
+            display_text = "-- Blank --" if household_number == "" else household_number
+            self.household_number_combo.addItem(display_text)
+            self.household_number_combo.setItemData(self.household_number_combo.count() - 1, household_number)
+
+    def populate_household_member_number(self):
+        """เติมข้อมูล HouseholdMemberNumber dropdown"""
+        where_conditions, where_params = self.build_where_conditions_up_to_household_number()
+    
+        member_numbers = get_distinct_values("HouseholdMemberNumber", where_conditions, where_params)
+    
+        self.household_member_number_combo.clear()
+        self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
+    
+        for member_number in member_numbers:
+            display_text = "-- Blank --" if member_number == "" else member_number
+            self.household_member_number_combo.addItem(display_text)
+            self.household_member_number_combo.setItemData(self.household_member_number_combo.count() - 1, member_number)
+
+    # ฟังก์ชัน clear
+    def clear_area_code_and_below(self):
+        """ล้าง AreaCode และ dropdown ข้างล่าง"""
+        self.area_code_combo.clear()
+        self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
+        self.clear_ea_no_and_below()
+
+    def clear_ea_no_and_below(self):
+        """ล้าง EA_NO และ dropdown ข้างล่าง"""
+        self.ea_no_combo.clear()
+        self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
+        self.clear_vil_code_and_below()
+
+    def clear_vil_code_and_below(self):
+        """ล้าง VilCode และ dropdown ข้างล่าง"""
+        self.vil_code_combo.clear()
+        self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
+        self.clear_vil_name_and_below()
+
+    def clear_vil_name_and_below(self):
+        """ล้าง VilName และ dropdown ข้างล่าง"""
+        self.vil_name_combo.clear()
+        self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
+        self.clear_building_number_and_below()
+
+    def clear_building_number_and_below(self):
+        """ล้าง BuildingNumber และ dropdown ข้างล่าง"""
+        self.building_number_combo.clear()
+        self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
+        self.clear_household_number_and_below()
+
+    def clear_household_number_and_below(self):
+        """ล้าง HouseholdNumber และ dropdown ข้างล่าง"""
+        self.household_number_combo.clear()
+        self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
+        self.clear_household_member_number_and_below()
+
+    def clear_household_member_number_and_below(self):
+        """ล้าง HouseholdMemberNumber dropdown"""
+        self.household_member_number_combo.clear()
+        self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
+
+    # ฟังก์ชันสร้าง WHERE conditions
+    def build_where_conditions_up_to_subdistrict(self):
+        """สร้าง WHERE conditions จนถึงระดับตำบล"""
+        conditions = []
+        params = []
+    
+        # รวมเงื่อนไขจาก location codes เดิม
+        codes = self.get_selected_codes()
+        for key, value in codes.items():
+            if value is not None:
+                conditions.append(f"[{key}] = ?")
+                params.append(value)
+    
+        return " AND ".join(conditions) if conditions else None, params
+
+    def build_where_conditions_up_to_area_code(self):
+        """สร้าง WHERE conditions จนถึง AreaCode"""
+        base_conditions, base_params = self.build_where_conditions_up_to_subdistrict()
+    
+        # เพิ่มเงื่อนไข AreaCode
+        area_code_value = self.get_selected_area_code()
+        if area_code_value is not None:
+            if area_code_value == "":
+                # จัดการกรณีเลือก blank - ให้ค้นหาค่า null หรือ empty
+                area_condition = "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')"
+            else:
+                area_condition = "[AreaCode] = ?"
+            
+            if base_conditions:
+                conditions = f"{base_conditions} AND {area_condition}"
+            else:
+                conditions = area_condition
+        
+            params = base_params.copy()
+            if area_code_value != "":
+                params.append(area_code_value)
+        else:
+            conditions = base_conditions
+            params = base_params
+    
+        return conditions, params
+
+    def build_where_conditions_up_to_ea_no(self):
+        """สร้าง WHERE conditions จนถึง EA_NO"""
+        base_conditions, base_params = self.build_where_conditions_up_to_area_code()
+    
+        ea_no_value = self.get_selected_ea_no()
+        if ea_no_value is not None:
+            if ea_no_value == "":
+                ea_condition = "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')"
+            else:
+                ea_condition = "[EA_NO] = ?"
+            
+            if base_conditions:
+                conditions = f"{base_conditions} AND {ea_condition}"
+            else:
+                conditions = ea_condition
+        
+            params = base_params.copy()
+            if ea_no_value != "":
+                params.append(ea_no_value)
+        else:
+            conditions = base_conditions
+            params = base_params
+    
+        return conditions, params
+
+    def build_where_conditions_up_to_vil_code(self):
+        """สร้าง WHERE conditions จนถึง VilCode"""
+        base_conditions, base_params = self.build_where_conditions_up_to_ea_no()
+    
+        vil_code_value = self.get_selected_vil_code()
+        if vil_code_value is not None:
+            if vil_code_value == "":
+                vil_condition = "([VilCode] IS NULL OR [VilCode] = '' OR LTRIM(RTRIM([VilCode])) = '')"
+            else:
+                vil_condition = "[VilCode] = ?"
+            
+            if base_conditions:
+                conditions = f"{base_conditions} AND {vil_condition}"
+            else:
+                conditions = vil_condition
+        
+            params = base_params.copy()
+            if vil_code_value != "":
+                params.append(vil_code_value)
+        else:
+            conditions = base_conditions
+            params = base_params
+    
+        return conditions, params
+
+    def build_where_conditions_up_to_vil_name(self):
+        """สร้าง WHERE conditions จนถึง VilName"""
+        base_conditions, base_params = self.build_where_conditions_up_to_vil_code()
+    
+        vil_name_value = self.get_selected_vil_name()
+        if vil_name_value is not None:
+            if vil_name_value == "":
+                vil_name_condition = "([VilName] IS NULL OR [VilName] = '' OR LTRIM(RTRIM([VilName])) = '')"
+            else:
+                vil_name_condition = "[VilName] = ?"
+            
+            if base_conditions:
+                conditions = f"{base_conditions} AND {vil_name_condition}"
+            else:
+                conditions = vil_name_condition
+        
+            params = base_params.copy()
+            if vil_name_value != "":
+                params.append(vil_name_value)
+        else:
+            conditions = base_conditions
+            params = base_params
+    
+        return conditions, params
+
+    def build_where_conditions_up_to_building_number(self):
+        """สร้าง WHERE conditions จนถึง BuildingNumber"""
+        base_conditions, base_params = self.build_where_conditions_up_to_vil_name()
+    
+        building_number_value = self.get_selected_building_number()
+        if building_number_value is not None:
+            if building_number_value == "":
+                building_condition = "([BuildingNumber] IS NULL OR [BuildingNumber] = '' OR LTRIM(RTRIM([BuildingNumber])) = '')"
+            else:
+                building_condition = "[BuildingNumber] = ?"
+            
+            if base_conditions:
+                conditions = f"{base_conditions} AND {building_condition}"
+            else:
+                conditions = building_condition
+        
+            params = base_params.copy()
+            if building_number_value != "":
+                params.append(building_number_value)
+        else:
+            conditions = base_conditions
+            params = base_params
+    
+        return conditions, params
+
+    def build_where_conditions_up_to_household_number(self):
+        """สร้าง WHERE conditions จนถึง HouseholdNumber"""
+        base_conditions, base_params = self.build_where_conditions_up_to_building_number()
+    
+        household_number_value = self.get_selected_household_number()
+        if household_number_value is not None:
+            if household_number_value == "":
+                household_condition = "([HouseholdNumber] IS NULL OR [HouseholdNumber] = '' OR LTRIM(RTRIM([HouseholdNumber])) = '')"
+            else:
+                household_condition = "[HouseholdNumber] = ?"
+            
+            if base_conditions:
+                conditions = f"{base_conditions} AND {household_condition}"
+            else:
+                conditions = household_condition
+        
+            params = base_params.copy()
+            if household_number_value != "":
+                params.append(household_number_value)
+        else:
+            conditions = base_conditions
+            params = base_params
+    
+        return conditions, params
+
+    def get_selected_area_code(self):
+        """ดึงค่า AreaCode ที่เลือก"""
+        if self.area_code_combo.currentIndex() > 0:
+            return self.area_code_combo.itemData(self.area_code_combo.currentIndex())
+        return None
+
+    def get_selected_ea_no(self):
+        """ดึงค่า EA_NO ที่เลือก"""
+        if self.ea_no_combo.currentIndex() > 0:
+            return self.ea_no_combo.itemData(self.ea_no_combo.currentIndex())
+        return None
+
+    def get_selected_vil_code(self):
+        """ดึงค่า VilCode ที่เลือก"""
+        if self.vil_code_combo.currentIndex() > 0:
+            return self.vil_code_combo.itemData(self.vil_code_combo.currentIndex())
+        return None
+
+    def get_selected_vil_name(self):
+        """ดึงค่า VilName ที่เลือก"""
+        if self.vil_name_combo.currentIndex() > 0:
+            return self.vil_name_combo.itemData(self.vil_name_combo.currentIndex())
+        return None
+
+    def get_selected_building_number(self):
+        """ดึงค่า BuildingNumber ที่เลือก"""
+        if self.building_number_combo.currentIndex() > 0:
+            return self.building_number_combo.itemData(
+                self.building_number_combo.currentIndex()
+            )
+        return None
+
+    def get_selected_household_number(self):
+        """ดึงค่า HouseholdNumber ที่เลือก"""
+        if self.household_number_combo.currentIndex() > 0:
+            return self.household_number_combo.itemData(
+                self.household_number_combo.currentIndex()
+            )
+        return None
+
+    def get_selected_household_member_number(self):
+        """ดึงค่า HouseholdMemberNumber ที่เลือก"""
+        if self.household_member_number_combo.currentIndex() > 0:
+            return self.household_member_number_combo.itemData(
+                self.household_member_number_combo.currentIndex()
+            )
+        return None

@@ -23,11 +23,9 @@ class LocationData:
         try:
             excel_path = resource_path(os.path.join("assets", "reg_prov_dist_subdist.xlsx"))
             
-            # Load the Excel file
             LocationData._data = pd.read_excel(excel_path, sheet_name="Area_code")
             return True
         except Exception as e:
-            # print(f"Error loading location data: {str(e)}")
             return False
     
     def get_data(self):

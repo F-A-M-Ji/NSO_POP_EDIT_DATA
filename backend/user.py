@@ -12,7 +12,6 @@ class User:
 
         cursor = conn.cursor()
 
-        # Special case for admin
         if username == "admin":
             query = (
                 "SELECT username, password, fullname FROM edit_user WHERE username = ?"
@@ -24,7 +23,6 @@ class User:
                 return {"username": user.username, "fullname": user.fullname}
             return None
 
-        # Regular users with hashed passwords
         query = "SELECT username, password, fullname FROM edit_user WHERE username = ?"
         cursor.execute(query, (username,))
         user = cursor.fetchone()
@@ -48,12 +46,10 @@ class User:
 
         cursor = conn.cursor()
 
-        # Check if username already exists
         cursor.execute("SELECT 1 FROM edit_user WHERE username = ?", (username,))
         if cursor.fetchone():
             return False, "Username already exists"
 
-        # Hash password before storing
         hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
         try:
@@ -80,14 +76,12 @@ class User:
         cursor = conn.cursor()
 
         try:
-            # กรณีเป็นผู้ใช้ admin
             if username == "admin":
                 cursor.execute(
                     "UPDATE edit_user SET password = ? WHERE username = ?",
                     (new_password, username),
                 )
             else:
-                # สำหรับผู้ใช้ปกติ ใช้การเข้ารหัสด้วย bcrypt
                 hashed_password = bcrypt.hashpw(
                     new_password.encode("utf-8"), bcrypt.gensalt()
                 )
@@ -117,15 +111,12 @@ class User:
         cursor = conn.cursor()
 
         try:
-            # ตรวจสอบว่ามีผู้ใช้นี้หรือไม่
             cursor.execute("SELECT 1 FROM edit_user WHERE username = ?", (username,))
             if not cursor.fetchone():
                 return False, "ไม่พบผู้ใช้งานในระบบ"
 
-            # เข้ารหัสชื่อผู้ใช้เพื่อใช้เป็นรหัสผ่านใหม่
             hashed_password = bcrypt.hashpw(username.encode("utf-8"), bcrypt.gensalt())
 
-            # อัปเดตรหัสผ่านของผู้ใช้
             cursor.execute(
                 "UPDATE edit_user SET password = ? WHERE username = ?",
                 (hashed_password.decode("utf-8"), username),

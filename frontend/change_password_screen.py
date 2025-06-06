@@ -39,7 +39,6 @@ class ChangePasswordScreen(QWidget):
         center_column = QVBoxLayout()
         center_column.addStretch(1)
 
-        # ส่วนหัว - ให้เหมือนกับหน้าอื่น
         header_layout = QHBoxLayout()
 
         header_title_label = QLabel("เปลี่ยนรหัสผ่าน")
@@ -57,23 +56,18 @@ class ChangePasswordScreen(QWidget):
 
         center_column.addLayout(header_layout)
 
-        # สร้างเฟรมสำหรับฟอร์มเปลี่ยนรหัสผ่าน
         password_frame = QFrame()
-        password_frame.setObjectName(
-            "contentFrame"
-        )  # เปลี่ยนจาก loginFrame เป็น contentFrame
+        password_frame.setObjectName("contentFrame")
         add_shadow_effect(password_frame)
 
         password_layout = QVBoxLayout(password_frame)
         password_layout.setSpacing(15)
 
-        # หัวข้อฟอร์ม
         form_title = QLabel("กรุณาตั้งรหัสผ่านใหม่")
         form_title.setAlignment(Qt.AlignCenter)
         form_title.setObjectName("formTitle")
         password_layout.addWidget(form_title)
 
-        # แสดงชื่อผู้ใช้ที่กำลังเปลี่ยนรหัสผ่าน
         self.username_display = QLabel("")
         self.username_display.setAlignment(Qt.AlignCenter)
         password_layout.addWidget(self.username_display)
@@ -81,7 +75,6 @@ class ChangePasswordScreen(QWidget):
         form_layout = QVBoxLayout()
         form_layout.setSpacing(15)
 
-        # ช่องป้อนรหัสผ่านใหม่
         new_password_layout = QVBoxLayout()
         new_password_label = QLabel("รหัสผ่านใหม่:")
         self.new_password_input = QLineEdit()
@@ -105,7 +98,6 @@ class ChangePasswordScreen(QWidget):
         new_password_layout.addWidget(self.new_password_input)
         form_layout.addLayout(new_password_layout)
 
-        # ช่องยืนยันรหัสผ่านใหม่
         confirm_password_layout = QVBoxLayout()
         confirm_password_label = QLabel("ยืนยันรหัสผ่านใหม่:")
         self.confirm_password_input = QLineEdit()
@@ -131,7 +123,6 @@ class ChangePasswordScreen(QWidget):
 
         password_layout.addLayout(form_layout)
 
-        # ปุ่มยืนยันการเปลี่ยนรหัสผ่าน
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
@@ -192,7 +183,6 @@ class ChangePasswordScreen(QWidget):
             )
             return
 
-        # เรียกใช้ backend เพื่ออัปเดตรหัสผ่าน
         success, message = User.update_password(
             self.user_data["username"], new_password
         )

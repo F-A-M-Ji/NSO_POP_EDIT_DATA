@@ -26,15 +26,12 @@ class AddUserScreen(QWidget):
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(50, 50, 50, 50)
 
-        # Create container for centering content
         container_layout = QHBoxLayout()
-        container_layout.addStretch(1)  # Flexible space on the left side
+        container_layout.addStretch(1)
 
-        # Create the main column layout for header and content
         center_column = QVBoxLayout()
-        center_column.addStretch(1)  # Flexible space on the top
+        center_column.addStretch(1)
 
-        # Header with logout option
         header_layout = QHBoxLayout()
 
         header_title_label = QLabel("Add New User")
@@ -42,7 +39,7 @@ class AddUserScreen(QWidget):
         header_title_label.setObjectName("headerLabel")
         header_layout.addWidget(header_title_label)
 
-        header_layout.addStretch(1)  # Space between label and logout button
+        header_layout.addStretch(1)
 
         logout_button = QPushButton("back")
         logout_button.setObjectName("secondaryButton")
@@ -52,7 +49,6 @@ class AddUserScreen(QWidget):
 
         center_column.addLayout(header_layout)
 
-        # Create user form inside a frame
         user_frame = QFrame()
         user_frame.setObjectName("contentFrame")
 
@@ -61,7 +57,6 @@ class AddUserScreen(QWidget):
 
         add_shadow_effect(user_frame)
 
-        # Fullname input
         fullname_layout = QVBoxLayout()
         fullname_label = QLabel("Full Name:")
         self.fullname_input = QLineEdit()
@@ -71,7 +66,6 @@ class AddUserScreen(QWidget):
         fullname_layout.addWidget(self.fullname_input)
         user_layout.addLayout(fullname_layout)
 
-        # Username input
         username_layout = QVBoxLayout()
         username_label = QLabel("Username:")
         self.username_input = QLineEdit()
@@ -82,14 +76,13 @@ class AddUserScreen(QWidget):
         username_layout.addWidget(self.username_input)
         user_layout.addLayout(username_layout)
 
-        # Password input
         password_layout = QVBoxLayout()
         password_label = QLabel("Password:")
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter password")
         self.password_input.setEchoMode(QLineEdit.Password)
         toggle_password = QAction(self.password_input)
-        toggle_password.setIcon(QIcon("assets/eye-open.svg"))  # ใช้ไอคอนตาเปิด
+        toggle_password.setIcon(QIcon("assets/eye-open.svg"))
         toggle_password.setCheckable(True)
         self.password_input.addAction(toggle_password, QLineEdit.TrailingPosition)
         self.password_input.setFixedWidth(300)
@@ -97,22 +90,16 @@ class AddUserScreen(QWidget):
         password_layout.addWidget(self.password_input)
         user_layout.addLayout(password_layout)
 
-        # สลับไอคอนเมื่อกด toggle
         def toggle_password_visibility(checked):
             if checked:
-                toggle_password.setIcon(
-                    QIcon("assets/eye-closed.svg")
-                )  # เปลี่ยนเป็นไอคอนตาปิด
+                toggle_password.setIcon(QIcon("assets/eye-closed.svg"))
                 self.password_input.setEchoMode(QLineEdit.Normal)
             else:
-                toggle_password.setIcon(
-                    QIcon("assets/eye-open.svg")
-                )  # เปลี่ยนกลับเป็นไอคอนตาเปิด
+                toggle_password.setIcon(QIcon("assets/eye-open.svg"))
                 self.password_input.setEchoMode(QLineEdit.Password)
 
         toggle_password.toggled.connect(toggle_password_visibility)
 
-        # Add button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         self.add_button = QPushButton("Add User")
@@ -147,7 +134,7 @@ class AddUserScreen(QWidget):
 
         if success:
             QMessageBox.information(self, "Success", message)
-            self.clear_input_fields()  # Use helper method
+            self.clear_input_fields()
         else:
             QMessageBox.warning(self, "Error", message)
 
@@ -161,11 +148,6 @@ class AddUserScreen(QWidget):
         """Clears input fields and navigates to the login screen."""
         self.clear_input_fields()
         self.parent_app.navigate_to("admin_menu")
-
-        # if self.parent_app and hasattr(self.parent_app, "perform_logout"):
-        #     self.parent_app.perform_logout()
-        # else:
-        #     self.parent_app.navigate_to("admin_menu")
 
     def update_user_fullname(self, fullname):
         """Updates the display name of the logged-in admin user."""

@@ -12,7 +12,6 @@ def fetch_all_r_alldata_fields():
             return []
         
         cursor = connection.cursor()
-        # เปลี่ยนจาก r_alldata เป็น r_alldata_edit
         cursor.execute("""
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
@@ -25,7 +24,6 @@ def fetch_all_r_alldata_fields():
         return columns
         
     except Exception as e:
-        print(f"Error fetching r_alldata_edit fields: {e}")
         return []
 
 
@@ -38,23 +36,19 @@ def search_r_alldata(location_codes, all_db_fields, logical_pk_fields):
         
         cursor = connection.cursor()
         
-        # สร้าง WHERE clause
         where_conditions = []
         params = []
         
         for key, value in location_codes.items():
             if value is not None:
-                # แปลง numpy types เป็น native Python types
                 converted_value = convert_to_native_type(value)
                 
                 if converted_value is None or converted_value == "" or converted_value == "blank":
-                    # รองรับการค้นหาค่า blank/null
                     where_conditions.append(f"([{key}] IS NULL OR [{key}] = '' OR LTRIM(RTRIM([{key}])) = '')")
                 else:
                     where_conditions.append(f"[{key}] = ?")
                     params.append(converted_value)
         
-        # เปลี่ยนจาก r_alldata เป็น r_alldata_edit
         base_query = f"SELECT * FROM [r_alldata_edit]"
         
         if where_conditions:
@@ -62,7 +56,6 @@ def search_r_alldata(location_codes, all_db_fields, logical_pk_fields):
         else:
             query = base_query
         
-        # เพิ่ม ORDER BY สำหรับ logical primary key fields
         if logical_pk_fields:
             order_fields = [f"[{field}]" for field in logical_pk_fields if field in all_db_fields]
             if order_fields:
@@ -76,7 +69,6 @@ def search_r_alldata(location_codes, all_db_fields, logical_pk_fields):
         
     except Exception as e:
         error_msg = f"Error searching r_alldata_edit: {str(e)}"
-        print(error_msg)
         return [], [], error_msg
 
 
@@ -95,17 +87,14 @@ def save_edited_r_alldata_rows(records_to_save, all_db_fields):
         saved_count = 0
         
         for record in records_to_save:
-            # สร้าง UPDATE statement สำหรับ r_alldata_edit
             update_fields = []
             update_values = []
             where_conditions = []
             where_values = []
             
-            # ใช้ logical primary key สำหรับ WHERE clause
             pk_fields = ["EA_Code_15", "Building_No", "Household_No", "Population_No"]
             
             for field_name, field_value in record.items():
-                # แปลง numpy types เป็น native Python types
                 converted_value = convert_to_native_type(field_value)
                 
                 if field_name in pk_fields:
@@ -118,7 +107,6 @@ def save_edited_r_alldata_rows(records_to_save, all_db_fields):
             if not where_conditions or not update_fields:
                 continue
             
-            # เปลี่ยนจาก r_alldata เป็น r_alldata_edit
             query = f"""
                 UPDATE [r_alldata_edit] 
                 SET {', '.join(update_fields)} 
@@ -137,7 +125,6 @@ def save_edited_r_alldata_rows(records_to_save, all_db_fields):
         
     except Exception as e:
         error_msg = f"Error saving to r_alldata_edit: {str(e)}"
-        print(error_msg)
         return 0, error_msg
     
 
@@ -146,11 +133,9 @@ def convert_to_native_type(value):
     if value is None:
         return None
     
-    # แปลง numpy types เป็น native Python types
-    if hasattr(value, 'item'):  # numpy scalar types have .item() method
+    if hasattr(value, 'item'):
         return value.item()
     elif str(type(value)).startswith('<class \'numpy.'):
-        # สำหรับ numpy types อื่นๆ
         try:
             return value.item()
         except (AttributeError, ValueError):
@@ -168,7 +153,6 @@ def get_distinct_values(field_name, where_conditions=None, where_params=None, in
         
         cursor = connection.cursor()
         
-        # สร้าง query สำหรับดึงค่าที่ไม่ซ้ำ รวมถึงค่า blank
         base_query = f"""
             SELECT DISTINCT [{field_name}] 
             FROM [r_alldata_edit] 
@@ -176,7 +160,6 @@ def get_distinct_values(field_name, where_conditions=None, where_params=None, in
         
         if where_conditions:
             query = f"{base_query} WHERE {where_conditions}"
-            # แปลง numpy types เป็น native Python types
             converted_params = [convert_to_native_type(param) for param in (where_params or [])]
             cursor.execute(query, converted_params)
         else:
@@ -191,16 +174,13 @@ def get_distinct_values(field_name, where_conditions=None, where_params=None, in
             if value is None or str(value).strip() == "":
                 has_blank = True
             else:
-                # แปลงเป็น native type ก่อนแปลงเป็น string
                 converted_value = convert_to_native_type(value)
                 clean_value = str(converted_value).strip()
                 if clean_value and clean_value not in values:
                     values.append(clean_value)
         
-        # เรียงลำดับค่าที่ไม่ใช่ blank
         values.sort()
         
-        # เพิ่มค่า blank ไว้ท้ายสุด
         if has_blank:
             values.append("")
         
@@ -208,7 +188,6 @@ def get_distinct_values(field_name, where_conditions=None, where_params=None, in
         return values
         
     except Exception as e:
-        print(f"Error getting distinct values for {field_name}: {e}")
         return []
 
 
@@ -221,7 +200,6 @@ def get_area_name_mapping():
         
         cursor = connection.cursor()
         
-        # ดึง mapping ระหว่าง AreaCode และ AreaName
         cursor.execute("""
             SELECT DISTINCT [AreaCode], [AreaName] 
             FROM [r_alldata_edit] 
@@ -235,13 +213,11 @@ def get_area_name_mapping():
             area_code = convert_to_native_type(row[0])
             area_name = convert_to_native_type(row[1])
             
-            # จัดการค่า blank
             code_key = "" if area_code is None else str(area_code).strip()
             name_value = "" if area_name is None else str(area_name).strip()
             
             mapping[code_key] = name_value
         
-        # เพิ่มค่าเริ่มต้นสำหรับค่าที่อาจจะไม่มีใน database
         if "" not in mapping:
             mapping[""] = ""
         if "1" not in mapping:
@@ -253,5 +229,4 @@ def get_area_name_mapping():
         return mapping
         
     except Exception as e:
-        print(f"Error getting area name mapping: {e}")
         return {"": "", "1": "ในเขตเทศบาล", "2": "นอกเขตเทศบาล"}

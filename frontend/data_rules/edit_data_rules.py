@@ -335,17 +335,14 @@ FIELD_VALIDATION_RULES_CONFIG = {
 def update_rules_from_excel_data(screen_instance):
     """อัปเดตกฎการตรวจสอบ FIELD_VALIDATION_RULES ของ screen_instance ด้วยข้อมูลจากไฟล์ Excel"""
 
-    # ตรวจสอบว่า screen_instance.validation_data_from_excel และ screen_instance.FIELD_VALIDATION_RULES มีอยู่จริง
     if not hasattr(screen_instance, "validation_data_from_excel") or not hasattr(
         screen_instance, "FIELD_VALIDATION_RULES"
     ):
-        # อาจจะ log error หรือ return เพื่อป้องกันปัญหา
         print(
             "Error: screen_instance is missing required attributes for validation update."
         )
         return
 
-    # อัปเดต LanguageOther
     if "LanguageOther" in screen_instance.validation_data_from_excel:
         screen_instance.FIELD_VALIDATION_RULES["LanguageOther"] = {
             "type": "custom",
@@ -356,7 +353,6 @@ def update_rules_from_excel_data(screen_instance):
             "description": "ต้องเป็นรหัสภาษาอื่นที่กำหนด",
         }
 
-    # อัปเดต NationalityNumeric
     if "NationalityNumeric" in screen_instance.validation_data_from_excel:
         screen_instance.FIELD_VALIDATION_RULES["NationalityNumeric"] = {
             "type": "custom",
@@ -367,7 +363,6 @@ def update_rules_from_excel_data(screen_instance):
             "description": "ต้องเป็นรหัสสัญชาติที่กำหนด",
         }
 
-    # อัปเดต MovedFromAbroad
     if "MovedFromAbroad" in screen_instance.validation_data_from_excel:
         screen_instance.FIELD_VALIDATION_RULES["MovedFromAbroad"] = {
             "type": "excel_padded_number",

@@ -26,13 +26,7 @@ class AdminMenuScreen(QWidget):
         center_column = QVBoxLayout()
         center_column.addStretch(1)
 
-        # ส่วนหัว
         header_layout = QHBoxLayout()
-
-        # header_title_label = QLabel("Admin Menu")
-        # header_title_label.setAlignment(Qt.AlignCenter)
-        # header_title_label.setObjectName("headerLabel")
-        # header_layout.addWidget(header_title_label)
 
         header_layout.addStretch(1)
 
@@ -44,7 +38,6 @@ class AdminMenuScreen(QWidget):
 
         center_column.addLayout(header_layout)
 
-        # สร้างกรอบเมนู
         menu_frame = QFrame()
         menu_frame.setObjectName("contentFrame")
 
@@ -53,7 +46,6 @@ class AdminMenuScreen(QWidget):
 
         add_shadow_effect(menu_frame)
 
-        # ปุ่มเพิ่มผู้ใช้งาน
         add_user_button = QPushButton("Add User")
         add_user_button.setObjectName("primaryButton")
         add_user_button.setCursor(Qt.PointingHandCursor)
@@ -62,7 +54,6 @@ class AdminMenuScreen(QWidget):
         add_user_button.setFixedHeight(40)
         menu_layout.addWidget(add_user_button, alignment=Qt.AlignCenter)
 
-        # ปุ่มรีเซ็ตรหัสผ่าน
         reset_password_button = QPushButton("Reset Password")
         reset_password_button.setObjectName("primaryButton")
         reset_password_button.setCursor(Qt.PointingHandCursor)

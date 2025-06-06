@@ -14,7 +14,7 @@ from .reset_password_screen import ResetPasswordScreen
 class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.current_user = None  # เพิ่มตัวแปรเก็บข้อมูลผู้ใช้ปัจจุบัน
+        self.current_user = None
         self.setup_ui()
 
     def setup_ui(self):

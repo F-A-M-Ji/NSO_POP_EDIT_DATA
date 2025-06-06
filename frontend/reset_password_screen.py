@@ -30,7 +30,6 @@ class ResetPasswordScreen(QWidget):
         center_column = QVBoxLayout()
         center_column.addStretch(1)
 
-        # ส่วนหัว
         header_layout = QHBoxLayout()
 
         header_title_label = QLabel("Reset Password")
@@ -48,7 +47,6 @@ class ResetPasswordScreen(QWidget):
 
         center_column.addLayout(header_layout)
 
-        # สร้างกรอบฟอร์ม
         reset_frame = QFrame()
         reset_frame.setObjectName("contentFrame")
 
@@ -57,7 +55,6 @@ class ResetPasswordScreen(QWidget):
 
         add_shadow_effect(reset_frame)
 
-        # ช่องป้อน username
         username_layout = QVBoxLayout()
         username_label = QLabel("Username:")
         self.username_input = QLineEdit()
@@ -69,7 +66,6 @@ class ResetPasswordScreen(QWidget):
         username_layout.addWidget(self.username_input)
         reset_layout.addLayout(username_layout)
 
-        # ปุ่มรีเซ็ต
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
@@ -101,7 +97,6 @@ class ResetPasswordScreen(QWidget):
             QMessageBox.warning(self, "ข้อผิดพลาด", "กรุณาป้อน Username")
             return
 
-        # เรียกใช้เมธอด reset_password_to_username จาก User class
         success, message = User.reset_password_to_username(username)
 
         if success:

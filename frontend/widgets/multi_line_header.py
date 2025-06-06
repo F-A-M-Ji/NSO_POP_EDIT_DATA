@@ -30,8 +30,8 @@ from PyQt5.QtGui import (
 class FilterDropdown(QWidget):
     """Widget สำหรับแสดงตัวเลือกฟิลเตอร์"""
 
-    filter_applied = pyqtSignal(int, str, bool)  # column, text, show_blank_only
-    filter_cleared = pyqtSignal(int)  # column
+    filter_applied = pyqtSignal(int, str, bool)
+    filter_cleared = pyqtSignal(int)
 
     def __init__(self, column, parent=None):
         super().__init__(parent)
@@ -48,12 +48,8 @@ class FilterDropdown(QWidget):
         )
 
         layout = QVBoxLayout(self)
-        # layout.setContentsMargins(
-        #     12, 12, 12, 12
-        # )
         layout.setSpacing(10)
 
-        # ช่องค้นหา
         search_label = QLabel("ค้นหาข้อมูล:")
         search_label.setObjectName("filterLabel")
         layout.addWidget(search_label)
@@ -62,11 +58,9 @@ class FilterDropdown(QWidget):
         self.search_input.setPlaceholderText("ป้อนข้อความที่ต้องการค้นหา...")
         layout.addWidget(self.search_input)
 
-        # ตัวเลือก Blank
         self.blank_checkbox = QCheckBox("แสดงเฉพาะข้อมูลว่าง (Null/Empty)")
         layout.addWidget(self.blank_checkbox)
 
-        # ปุ่ม
         button_layout = QHBoxLayout()
 
         self.clear_button = QPushButton("ล้าง")
@@ -85,7 +79,6 @@ class FilterDropdown(QWidget):
 
         layout.addLayout(button_layout)
 
-        # เชื่อมต่อ Enter key
         self.search_input.returnPressed.connect(self.apply_filter)
 
     def apply_filter(self):
@@ -118,8 +111,8 @@ class FilterDropdown(QWidget):
 class FilterableMultiLineHeaderView(QHeaderView):
     """MultiLineHeaderView ที่มีฟิลเตอร์"""
 
-    filter_requested = pyqtSignal(int, str, bool)  # column, text, show_blank_only
-    filter_cleared = pyqtSignal(int)  # column
+    filter_requested = pyqtSignal(int, str, bool)
+    filter_cleared = pyqtSignal(int)
 
     TEXT_LINES_ALLOWANCE = 3
     VERTICAL_PADDING_PER_LINE = 0
@@ -129,8 +122,8 @@ class FilterableMultiLineHeaderView(QHeaderView):
         super().__init__(orientation, parent)
         self.mainTexts = {}
         self.subTexts = {}
-        self.filter_buttons = {}  # เก็บตำแหน่งปุ่มฟิลเตอร์
-        self.active_filters = {}  # เก็บฟิลเตอร์ที่ใช้งานอยู่
+        self.filter_buttons = {}
+        self.active_filters = {}
         self.filter_dropdown = None
 
         self.setDefaultAlignment(Qt.AlignCenter)
@@ -198,27 +191,16 @@ class FilterableMultiLineHeaderView(QHeaderView):
 
         self.style().drawControl(QStyle.CE_HeaderSection, option, painter, self)
 
-        # **เพิ่มการวาดเส้นแนวตั้งคั่นหัวข้อ**
         painter.save()
     
-        # วาดเส้นขอบขวา (เส้นแนวตั้งคั่น)
-        painter.setPen(QPen(QColor("#DEE2E6"), 1))  # สีเทาอ่อน ความหนา 1px
+        painter.setPen(QPen(QColor("#DEE2E6"), 1))
         painter.drawLine(rect.topRight(), rect.bottomRight())
-    
-        # วาดเส้นขอบบน (ถ้าต้องการ)
-        # painter.setPen(QPen(QColor("#B0B0B0"), 1))
-        # painter.drawLine(rect.topLeft(), rect.topRight())
-    
-        # วาดเส้นขอบล่าง (เส้นแนวนอนคั่น)
-        # painter.setPen(QPen(QColor("#B0B0B0"), 1))
-        # painter.drawLine(rect.bottomLeft(), rect.bottomRight())
     
         painter.restore()
 
         mainText = self.mainTexts.get(logicalIndex, "")
         subText = self.subTexts.get(logicalIndex, "")
 
-        # Area for drawing text, adjusted for filter button
         filter_button_width = 20 if logicalIndex > 0 else 0
         text_drawing_rect = QRect(rect).adjusted(
             self.TEXT_BLOCK_PADDING // 2,
@@ -233,7 +215,6 @@ class FilterableMultiLineHeaderView(QHeaderView):
         available_width = text_drawing_rect.width()
         max_y = text_drawing_rect.bottom()
 
-        # Draw Main Text
         if mainText:
             main_painter_font = QFont(self.font())
             main_painter_font.setBold(True)
@@ -263,7 +244,6 @@ class FilterableMultiLineHeaderView(QHeaderView):
                 painter.drawText(draw_rect, Qt.AlignCenter | Qt.TextWordWrap, mainText)
                 current_y += actual_main_h
 
-        # Draw Sub Text
         if subText:
             if mainText and current_y < max_y:
                 current_y += self.VERTICAL_PADDING_PER_LINE
@@ -289,7 +269,6 @@ class FilterableMultiLineHeaderView(QHeaderView):
 
         painter.restore()
 
-        # Draw filter button (ข้ามคอลัมน์ลำดับ)
         if logicalIndex > 0:
             self.draw_filter_button(painter, rect, logicalIndex)
 
@@ -298,20 +277,16 @@ class FilterableMultiLineHeaderView(QHeaderView):
         button_size = 16
         padding = 4
 
-        # คำนวณตำแหน่งปุ่ม (มุมขวาบน)
         button_x = rect.right() - button_size - padding
         button_y = rect.top() + padding
         button_rect = QRect(button_x, button_y, button_size, button_size)
 
-        # เก็บตำแหน่งปุ่ม
         self.filter_buttons[logicalIndex] = button_rect
 
         painter.save()
 
-        # ตรวจสอบว่ามีฟิลเตอร์ใช้งานอยู่หรือไม่
         has_active_filter = logicalIndex in self.active_filters
 
-        # สีพื้นหลังปุ่ม
         if has_active_filter:
             painter.setBrush(QBrush(QColor("#2196F3")))
             painter.setPen(QPen(QColor("#1976D2"), 1))
@@ -319,15 +294,12 @@ class FilterableMultiLineHeaderView(QHeaderView):
             painter.setBrush(QBrush(QColor("#f0f0f0")))
             painter.setPen(QPen(QColor("#bdbdbd"), 1))
 
-        # วาดกรอบปุ่ม
         painter.drawRoundedRect(button_rect, 2, 2)
 
-        # วาดไอคอนฟิลเตอร์ (สามเหลี่ยม)
         icon_color = QColor("white") if has_active_filter else QColor("#666666")
         painter.setPen(QPen(icon_color, 1))
         painter.setBrush(QBrush(icon_color))
 
-        # สร้างรูปสามเหลี่ยม (ไอคอนฟิลเตอร์)
         center_x = button_rect.center().x()
         center_y = button_rect.center().y()
         triangle_size = 6
@@ -354,7 +326,6 @@ class FilterableMultiLineHeaderView(QHeaderView):
                     self.show_filter_dropdown(logical_index, event.globalPos())
                     return
 
-        # ถ้าไม่ใช่การคลิกปุ่มฟิลเตอร์ ให้ทำงานปกติ
         super().mousePressEvent(event)
 
     def handle_section_clicked(self, logical_index):
@@ -370,15 +341,13 @@ class FilterableMultiLineHeaderView(QHeaderView):
         self.filter_dropdown.filter_applied.connect(self.apply_filter)
         self.filter_dropdown.filter_cleared.connect(self.clear_filter)
 
-        # ตั้งค่าฟิลเตอร์ปัจจุบัน (ถ้ามี)
         if column in self.active_filters:
             filter_info = self.active_filters[column]
             self.filter_dropdown.set_filter_values(
                 filter_info.get("text", ""), filter_info.get("show_blank", False)
             )
 
-        # แสดง dropdown ใต้ปุ่มฟิลเตอร์
-        dropdown_x = global_pos.x() - 250  # ขยับไปทางซ้าย
+        dropdown_x = global_pos.x() - 250
         dropdown_y = global_pos.y() + 10
 
         self.filter_dropdown.move(dropdown_x, dropdown_y)
@@ -427,5 +396,4 @@ class FilterableMultiLineHeaderView(QHeaderView):
         super().updateGeometries()
 
 
-# เพิ่ม alias เพื่อความเข้ากันได้
 MultiLineHeaderView = FilterableMultiLineHeaderView

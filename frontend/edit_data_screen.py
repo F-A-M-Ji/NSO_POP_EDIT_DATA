@@ -80,10 +80,8 @@ class EditDataScreen(QWidget):
 
         self._all_db_fields_r_alldata = []
 
-        # โหลดข้อมูลการตรวจสอบจากไฟล์ Excel
         self.validation_data_from_excel = load_validation_data_from_excel(self)
 
-        # อัปเดตกฎการตรวจสอบ
         update_rules_from_excel_data(self)
 
         self.setup_ui()
@@ -165,7 +163,6 @@ class EditDataScreen(QWidget):
         subdistrict_layout.addWidget(self.subdistrict_combo)
         search_row1_layout.addLayout(subdistrict_layout)
 
-        # เพิ่ม dropdown สำหรับ AreaCode
         area_code_layout = QVBoxLayout()
         area_code_label = QLabel("เขตการปกครอง:")
         self.area_code_combo = QComboBox()
@@ -175,7 +172,6 @@ class EditDataScreen(QWidget):
         area_code_layout.addWidget(self.area_code_combo)
         search_row1_layout.addLayout(area_code_layout)
 
-        # เพิ่ม dropdown สำหรับ EA_NO
         ea_no_layout = QVBoxLayout()
         ea_no_label = QLabel("เขตแจงนับ:")
         self.ea_no_combo = QComboBox()
@@ -187,10 +183,8 @@ class EditDataScreen(QWidget):
 
         search_layout.addLayout(search_row1_layout)
 
-        # ชั้นที่ 2
         search_row2_layout = QHBoxLayout()
 
-        # เพิ่ม dropdown สำหรับ VilCode
         vil_code_layout = QVBoxLayout()
         vil_code_label = QLabel("หมู่ที่:")
         self.vil_code_combo = QComboBox()
@@ -200,7 +194,6 @@ class EditDataScreen(QWidget):
         vil_code_layout.addWidget(self.vil_code_combo)
         search_row2_layout.addLayout(vil_code_layout)
 
-        # เพิ่ม dropdown สำหรับ VilName
         vil_name_layout = QVBoxLayout()
         vil_name_label = QLabel("ชื่อหมู่บ้าน:")
         self.vil_name_combo = QComboBox()
@@ -210,7 +203,6 @@ class EditDataScreen(QWidget):
         vil_name_layout.addWidget(self.vil_name_combo)
         search_row2_layout.addLayout(vil_name_layout)
 
-        # เพิ่ม dropdown สำหรับ BuildingNumber
         building_number_layout = QVBoxLayout()
         building_number_label = QLabel("ลำดับที่สิ่งปลูกสร้าง:")
         self.building_number_combo = QComboBox()
@@ -222,7 +214,6 @@ class EditDataScreen(QWidget):
         building_number_layout.addWidget(self.building_number_combo)
         search_row2_layout.addLayout(building_number_layout)
 
-        # เพิ่ม dropdown สำหรับ HouseholdNumber
         household_number_layout = QVBoxLayout()
         household_number_label = QLabel("ลำดับที่ครัวเรือน:")
         self.household_number_combo = QComboBox()
@@ -234,7 +225,6 @@ class EditDataScreen(QWidget):
         household_number_layout.addWidget(self.household_number_combo)
         search_row2_layout.addLayout(household_number_layout)
 
-        # เพิ่ม dropdown สำหรับ HouseholdMemberNumber
         household_member_number_layout = QVBoxLayout()
         household_member_number_label = QLabel("ลำดับที่สมาชิกในครัวเรือน:")
         self.household_member_number_combo = QComboBox()
@@ -247,7 +237,7 @@ class EditDataScreen(QWidget):
         search_row2_layout.addLayout(household_member_number_layout)
 
         buttons_layout = QVBoxLayout()
-        buttons_label = QLabel("")  # เว้นพื้นที่สำหรับ label เหมือน dropdown อื่นๆ
+        buttons_label = QLabel("")
         buttons_layout.addWidget(buttons_label)
 
         buttons_container = QHBoxLayout()
@@ -256,7 +246,7 @@ class EditDataScreen(QWidget):
         self.search_button.setCursor(Qt.PointingHandCursor)
         self.search_button.clicked.connect(self.search_data)
         self.search_button.setFixedWidth(120)
-        self.search_button.setFixedHeight(20)  # ให้สูงเท่า dropdown
+        self.search_button.setFixedHeight(20)
         buttons_container.addWidget(self.search_button)
 
         self.clear_button = QPushButton("ล้าง")
@@ -264,20 +254,17 @@ class EditDataScreen(QWidget):
         self.clear_button.setCursor(Qt.PointingHandCursor)
         self.clear_button.clicked.connect(self.clear_search)
         self.clear_button.setFixedWidth(120)
-        self.clear_button.setFixedHeight(20)  # ให้สูงเท่า dropdown
+        self.clear_button.setFixedHeight(20)
         buttons_container.addWidget(self.clear_button)
 
-        # สร้าง widget container เพื่อให้ปุ่มอยู่ในตำแหน่งล่าง
         buttons_widget = QWidget()
         buttons_widget.setLayout(buttons_container)
         buttons_layout.addWidget(buttons_widget)
 
         search_row2_layout.addLayout(buttons_layout)
 
-        # กำหนด minimum width ให้ dropdown ทั้งหมด
         min_width = 150
 
-        # บรรทัดแรก
         self.region_combo.setMinimumWidth(min_width)
         self.province_combo.setMinimumWidth(min_width)
         self.district_combo.setMinimumWidth(min_width)
@@ -285,7 +272,6 @@ class EditDataScreen(QWidget):
         self.area_code_combo.setMinimumWidth(min_width)
         self.ea_no_combo.setMinimumWidth(min_width)
 
-        # บรรทัดที่สอง
         self.vil_code_combo.setMinimumWidth(min_width)
         self.vil_name_combo.setMinimumWidth(min_width)
         self.building_number_combo.setMinimumWidth(min_width)
@@ -308,11 +294,9 @@ class EditDataScreen(QWidget):
         results_title.setObjectName("sectionTitle")
         results_layout.addWidget(results_title)
 
-        # เพิ่มพื้นที่แสดงสถานะการแก้ไข
         status_layout = QHBoxLayout()
 
         self.edit_status_label = QLabel("ไม่มีการแก้ไข")
-        # self.edit_status_label.setStyleSheet("color: #666666; font-style: italic;")
         status_layout.addWidget(self.edit_status_label)
 
         status_layout.addStretch()
@@ -325,8 +309,7 @@ class EditDataScreen(QWidget):
         self.reset_edits_button.setObjectName("secondaryButton")
         self.reset_edits_button.setCursor(Qt.PointingHandCursor)
         self.reset_edits_button.clicked.connect(self.reset_all_edits)
-        self.reset_edits_button.setVisible(False)  # ซ่อนไว้ก่อน
-        # status_layout.addWidget(self.reset_edits_button)
+        self.reset_edits_button.setVisible(False)
 
         results_layout.addLayout(status_layout)
 
@@ -334,7 +317,6 @@ class EditDataScreen(QWidget):
         self.save_edits_button.setObjectName("primaryButton")
         self.save_edits_button.setCursor(Qt.PointingHandCursor)
         self.save_edits_button.clicked.connect(self.prompt_save_edits)
-        # self.save_edits_button.setFixedWidth(130)
         self.save_edits_button.setEnabled(False)
 
         buttons_under_table_layout = QHBoxLayout()
@@ -367,11 +349,10 @@ class EditDataScreen(QWidget):
 
         from frontend.widgets.multi_line_header import (
             FilterableMultiLineHeaderView,
-        )  # ย้าย import มาไว้ใกล้จุดใช้งาน หรือไว้ด้านบนตามปกติ
+        )
 
         self.header = FilterableMultiLineHeaderView(Qt.Horizontal, self.results_table)
 
-        # Import ฟังก์ชันกรอง
         from frontend.widgets.filters import apply_table_filter, clear_table_filter
 
         self.header.filter_requested.connect(
@@ -451,7 +432,6 @@ class EditDataScreen(QWidget):
         )
 
         if reply == QMessageBox.Yes:
-            # คืนค่าเดิมให้กับทุก cell ที่ถูกแก้ไข
             displayed_db_fields = self.column_mapper.get_fields_to_show()
 
             for row, visual_col in list(self.edited_items.keys()):
@@ -467,9 +447,8 @@ class EditDataScreen(QWidget):
                             str(original_value) if original_value is not None else ""
                         )
                         item.setText(original_text)
-                        item.setBackground(QBrush())  # คืนสีพื้นหลัง
+                        item.setBackground(QBrush())
 
-            # ล้างการแก้ไขทั้งหมด
             self.edited_items.clear()
             self.update_save_button_state()
 
@@ -478,16 +457,13 @@ class EditDataScreen(QWidget):
         has_edits = bool(self.edited_items)
         edit_count = len(self.edited_items)
 
-        # อัปเดตสถานะปุ่มบันทึก
         self.save_edits_button.setEnabled(has_edits)
 
-        # อัปเดตข้อความบนปุ่ม
         if has_edits:
             self.save_edits_button.setText(f"บันทึกการแก้ไข ({edit_count})")
         else:
             self.save_edits_button.setText("บันทึกการแก้ไข")
 
-        # อัปเดตสถานะการแก้ไข
         if hasattr(self, "edit_status_label"):
             if has_edits:
                 self.edit_status_label.setText(f"มีการแก้ไข {edit_count} รายการ")
@@ -496,19 +472,10 @@ class EditDataScreen(QWidget):
                 )
             else:
                 self.edit_status_label.setText("ไม่มีการแก้ไข")
-                # self.edit_status_label.setStyleSheet(
-                #     "color: #666666; font-style: italic;"
-                # )
                 self.edit_status_label.setStyleSheet("")
 
-        # แสดง/ซ่อนปุ่มรีเซ็ต
         if hasattr(self, "reset_edits_button"):
             self.reset_edits_button.setVisible(has_edits)
-
-        # Force style update
-        # self.save_edits_button.style().unpolish(self.save_edits_button)
-        # self.save_edits_button.style().polish(self.save_edits_button)
-        # self.save_edits_button.update()
 
     def handle_item_changed(self, item: QTableWidgetItem):
         """ตรวจสอบและจัดการการเปลี่ยนแปลงข้อมูลในตารางแบบเรียลไทม์"""
@@ -518,25 +485,20 @@ class EditDataScreen(QWidget):
         row = item.row()
         visual_col = item.column()
 
-        # ข้ามคอลัมน์ลำดับ
         if visual_col == 0:
             return
 
         db_field_col_idx = visual_col - 1
 
-        # **สำคัญ: จัดการกรณีที่มีการกรองข้อมูล**
         if (
             hasattr(self, "filtered_data_cache")
             and self.filtered_data_cache
             and row < len(self.filtered_data_cache)
         ):
-            # หา index ของข้อมูลนี้ใน original_data_cache
             filtered_row_data = self.filtered_data_cache[row]
             original_row_idx = -1
 
-            # ค้นหาใน original_data_cache โดยใช้ Primary Key
             for i, original_row in enumerate(self.original_data_cache):
-                # เปรียบเทียบ Primary Key
                 is_same_row = True
                 for pk_field in self.LOGICAL_PK_FIELDS:
                     if original_row.get(pk_field) != filtered_row_data.get(pk_field):
@@ -550,7 +512,6 @@ class EditDataScreen(QWidget):
             if original_row_idx == -1:
                 return
 
-            # ใช้ original row index แทน filtered row index
             original_row_dict = self.original_data_cache[original_row_idx]
         else:
             if row >= len(self.original_data_cache):
@@ -565,7 +526,6 @@ class EditDataScreen(QWidget):
 
         db_field_name_for_column = displayed_db_fields[db_field_col_idx]
 
-        # ป้องกันการแก้ไข Primary Key fields และฟิลด์ที่กำหนดว่าไม่สามารถแก้ไขได้
         if (
             db_field_name_for_column in self.LOGICAL_PK_FIELDS
             or db_field_name_for_column in self.NON_EDITABLE_FIELDS
@@ -574,11 +534,9 @@ class EditDataScreen(QWidget):
             item.setText(str(original_value) if original_value is not None else "")
             return
 
-        # ดึงข้อมูลใหม่และเดิม
         new_text = item.text().strip()
         original_value = original_row_dict.get(db_field_name_for_column)
 
-        # แปลงข้อมูลเดิมเป็น string เพื่อเปรียบเทียบ
         if original_value is None:
             original_value_str = ""
         elif isinstance(original_value, (int, float)):
@@ -589,29 +547,23 @@ class EditDataScreen(QWidget):
         else:
             original_value_str = str(original_value).strip()
 
-        # เปรียบเทียบข้อมูล
         is_changed = original_value_str != new_text
 
-        # **สำคัญ: ใช้ original_row_idx สำหรับ edited_items key**
         edit_key = (original_row_idx, visual_col)
 
         if is_changed:
-            # มีการเปลี่ยนแปลง - เพิ่มลงใน edited_items และเปลี่ยนสีพื้นหลัง
             self.edited_items[edit_key] = new_text
             item.setBackground(QColor("lightyellow"))
         else:
-            # ไม่มีการเปลี่ยนแปลง หรือเปลี่ยนกลับเป็นค่าเดิม - ลบออกจาก edited_items
             if edit_key in self.edited_items:
                 del self.edited_items[edit_key]
             item.setBackground(QBrush())
 
-        # อัปเดตสถานะปุ่มทันทีหลังจากการเปลี่ยนแปลง
         self.update_save_button_state()
 
     def search_data(self):
         """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
     
-        # ตรวจสอบการแก้ไขที่ยังไม่ได้บันทึก (เหมือนเดิม)
         if self.edited_items:
             reply = QMessageBox.question(
                 self,
@@ -637,14 +589,11 @@ class EditDataScreen(QWidget):
                 )
                 return
 
-        # รวมเงื่อนไขการค้นหาทั้งหมด
         search_conditions = {}
     
-        # เงื่อนไขจาก location (เดิม)
         location_codes = self.get_selected_codes()
         search_conditions.update(location_codes)
     
-        # เงื่อนไขใหม่
         additional_conditions = {
             "AreaCode": self.get_selected_area_code(),
             "EA_NO": self.get_selected_ea_no(),
@@ -655,19 +604,16 @@ class EditDataScreen(QWidget):
             "HouseholdMemberNumber": self.get_selected_household_member_number(),
         }
     
-        # เพิ่มเงื่อนไขที่มีการเลือก
         for key, value in additional_conditions.items():
             if value is not None:
-                search_conditions[key] = value  # รวมทั้งค่า blank ("")
+                search_conditions[key] = value
 
-        # ตรวจสอบว่ามีเงื่อนไขการค้นหาหรือไม่
         if all(value is None for value in search_conditions.values()):
             show_error_message(
                 self, "Search Error", "กรุณาเลือกเงื่อนไขในการค้นหาอย่างน้อยหนึ่งรายการ"
             )
             return
 
-        # ค้นหาข้อมูล
         results, db_cols, error_msg = search_r_alldata(
             search_conditions, self._all_db_fields_r_alldata, self.LOGICAL_PK_FIELDS
         )
@@ -695,13 +641,11 @@ class EditDataScreen(QWidget):
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
 
-        # **สำคัญ: ล้างข้อมูลที่เกี่ยวข้องกับฟิลเตอร์**
         if hasattr(self, "filtered_data_cache"):
             self.filtered_data_cache.clear()
         if hasattr(self, "active_filters"):
             self.active_filters.clear()
 
-        # ล้างฟิลเตอร์ใน header ถ้ามี
         if hasattr(self, "header") and hasattr(self.header, "clear_all_filters"):
             self.header.clear_all_filters()
 
@@ -742,7 +686,6 @@ class EditDataScreen(QWidget):
                         cell_value = str(raw_value) if raw_value is not None else ""
 
                     item = QTableWidgetItem(cell_value)
-                    # **แก้ไข: ปรับการจัดตำแหน่งตามชื่อฟิลด์**
                     if displayed_field_name in ["FirstName", "LastName"]:
                         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # ชิดซ้าย
                     else:
@@ -794,7 +737,6 @@ class EditDataScreen(QWidget):
             self.update_save_button_state()
             return
 
-        # ตรวจสอบข้อมูลก่อนบันทึก
         validation_errors = validate_edited_data(self)
         if validation_errors:
             show_validation_errors(self, validation_errors)
@@ -831,7 +773,6 @@ class EditDataScreen(QWidget):
                                 db_field_index
                             ]
 
-                            # ป้องกันการบันทึกฟิลด์ที่ไม่สามารถแก้ไขได้
                             if (
                                 db_field_name_for_edit in self.LOGICAL_PK_FIELDS
                                 or db_field_name_for_edit in self.NON_EDITABLE_FIELDS
@@ -882,9 +823,7 @@ class EditDataScreen(QWidget):
                     if item:
                         item.setBackground(QBrush())
                 self.edited_items.clear()
-                # self.save_edits_button.setEnabled(False)
                 self.update_save_button_state()
-                # print("Refreshing data after save...")
                 self.search_data()
             else:
                 show_info_message(
@@ -909,9 +848,8 @@ class EditDataScreen(QWidget):
 
     def reset_screen_state(self):
         self.region_combo.setCurrentIndex(0)
-        self.clear_area_code_and_below()  # เพิ่มบรรทัดนี้
+        self.clear_area_code_and_below()
 
-        # ส่วนที่เหลือเหมือนเดิม
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -934,13 +872,10 @@ class EditDataScreen(QWidget):
             self.user_fullname_label.setText("User: N/A")
 
     def clear_search(self):
-        # ล้าง dropdown เดิม
         self.region_combo.setCurrentIndex(0)
 
-        # ล้าง dropdown ใหม่
         self.clear_area_code_and_below()
 
-        # ส่วนที่เหลือเหมือนเดิม
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -1094,7 +1029,6 @@ class EditDataScreen(QWidget):
         self.area_code_combo.blockSignals(True)
         self.clear_area_code_and_below()
     
-        # Populate area code แม้ว่าจะไม่เลือกตำบล (index = 0) ก็ตาม
         self.populate_area_code()
     
         self.area_code_combo.blockSignals(False)
@@ -1104,7 +1038,6 @@ class EditDataScreen(QWidget):
         self.ea_no_combo.blockSignals(True)
         self.clear_ea_no_and_below()
     
-        # Populate EA_NO แม้ว่าจะไม่เลือก area code (index = 0) หรือเลือก blank ก็ตาม
         self.populate_ea_no()
     
         self.ea_no_combo.blockSignals(False)
@@ -1212,7 +1145,6 @@ class EditDataScreen(QWidget):
         """เติมข้อมูล AreaCode dropdown"""
         where_conditions, where_params = self.build_where_conditions_up_to_subdistrict()
     
-        # ดึงข้อมูลทั้งหมด แม้ไม่มี where_conditions
         area_codes = get_distinct_values("AreaCode", where_conditions, where_params)
         area_name_mapping = get_area_name_mapping()
     
@@ -1227,7 +1159,6 @@ class EditDataScreen(QWidget):
                 display_text = f"{display_name}" if display_name else code
         
             self.area_code_combo.addItem(display_text)
-            # เก็บค่า AreaCode ไว้ใน userData
             self.area_code_combo.setItemData(self.area_code_combo.count() - 1, code)
 
     def populate_ea_no(self):
@@ -1314,7 +1245,6 @@ class EditDataScreen(QWidget):
             self.household_member_number_combo.addItem(display_text)
             self.household_member_number_combo.setItemData(self.household_member_number_combo.count() - 1, member_number)
 
-    # ฟังก์ชัน clear
     def clear_area_code_and_below(self):
         """ล้าง AreaCode และ dropdown ข้างล่าง"""
         self.area_code_combo.clear()
@@ -1356,13 +1286,11 @@ class EditDataScreen(QWidget):
         self.household_member_number_combo.clear()
         self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
 
-    # ฟังก์ชันสร้าง WHERE conditions
     def build_where_conditions_up_to_subdistrict(self):
         """สร้าง WHERE conditions จนถึงระดับตำบล"""
         conditions = []
         params = []
     
-        # รวมเงื่อนไขจาก location codes เดิม
         codes = self.get_selected_codes()
         for key, value in codes.items():
             if value is not None:
@@ -1375,11 +1303,9 @@ class EditDataScreen(QWidget):
         """สร้าง WHERE conditions จนถึง AreaCode"""
         base_conditions, base_params = self.build_where_conditions_up_to_subdistrict()
     
-        # เพิ่มเงื่อนไข AreaCode
         area_code_value = self.get_selected_area_code()
         if area_code_value is not None:
             if area_code_value == "":
-                # จัดการกรณีเลือก blank - ให้ค้นหาค่า null หรือ empty
                 area_condition = "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')"
             else:
                 area_condition = "[AreaCode] = ?"

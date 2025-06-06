@@ -26,43 +26,33 @@ class LoginScreen(QWidget):
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(50, 50, 50, 50)
 
-        # สร้าง container สำหรับจัดกลางหน้าจอ
         container_layout = QHBoxLayout()
-        container_layout.addStretch(1)  # พื้นที่ยืดหยุ่นด้านซ้าย
+        container_layout.addStretch(1)
 
-        # สร้าง column หลักตรงกลาง
         center_column = QVBoxLayout()
-        center_column.addStretch(1)  # พื้นที่ยืดหยุ่นด้านบน
+        center_column.addStretch(1)
 
-        # Header
         header_label = QLabel("Welcome to Application")
         header_label.setAlignment(Qt.AlignCenter)
         header_label.setObjectName("headerLabel")
         center_column.addWidget(header_label)
 
-        # Create a frame for login form
         login_frame = QFrame()
         login_frame.setObjectName("loginFrame")
-        # login_frame.setMinimumWidth(350)  # ความกว้างขั้นต่ำ
-        # login_frame.setMaximumWidth(500)  # ความกว้างสูงสุด
 
         add_shadow_effect(login_frame)
 
-        # สร้าง layout ภายใน frame
         login_layout = QVBoxLayout(login_frame)
         login_layout.setSpacing(20)
 
-        # Login form title
         form_title = QLabel("Login")
         form_title.setAlignment(Qt.AlignCenter)
         form_title.setObjectName("formTitle")
         login_layout.addWidget(form_title)
 
-        # สร้าง form layout
         form_layout = QVBoxLayout()
         form_layout.setSpacing(15)
 
-        # Username
         username_layout = QVBoxLayout()
         username_label = QLabel("Username:")
         self.username_input = QLineEdit()
@@ -72,38 +62,31 @@ class LoginScreen(QWidget):
         username_layout.addWidget(self.username_input)
         form_layout.addLayout(username_layout)
 
-        # Password
         password_layout = QVBoxLayout()
         password_label = QLabel("Password:")
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter your password")
         self.password_input.setEchoMode(QLineEdit.Password)
         toggle_password = QAction(self.password_input)
-        toggle_password.setIcon(QIcon("assets/eye-open.svg"))  # ใช้ไอคอนตาเปิด
+        toggle_password.setIcon(QIcon("assets/eye-open.svg"))
         toggle_password.setCheckable(True)
         self.password_input.addAction(toggle_password, QLineEdit.TrailingPosition)
         password_layout.addWidget(password_label)
         password_layout.addWidget(self.password_input)
         form_layout.addLayout(password_layout)
 
-        # สลับไอคอนเมื่อกด toggle
         def toggle_password_visibility(checked):
             if checked:
-                toggle_password.setIcon(
-                    QIcon("assets/eye-closed.svg")
-                )  # เปลี่ยนเป็นไอคอนตาปิด
+                toggle_password.setIcon(QIcon("assets/eye-closed.svg"))
                 self.password_input.setEchoMode(QLineEdit.Normal)
             else:
-                toggle_password.setIcon(
-                    QIcon("assets/eye-open.svg")
-                )  # เปลี่ยนกลับเป็นไอคอนตาเปิด
+                toggle_password.setIcon(QIcon("assets/eye-open.svg"))
                 self.password_input.setEchoMode(QLineEdit.Password)
 
         toggle_password.toggled.connect(toggle_password_visibility)
 
         login_layout.addLayout(form_layout)
 
-        # Login button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
@@ -118,15 +101,12 @@ class LoginScreen(QWidget):
         button_layout.addStretch()
         login_layout.addLayout(button_layout)
 
-        # เพิ่ม login frame เข้าไปใน column หลัก
         center_column.addWidget(login_frame)
-        center_column.addStretch(1)  # พื้นที่ยืดหยุ่นด้านล่าง
+        center_column.addStretch(1)
 
-        # เพิ่ม column หลักเข้าไปใน container
         container_layout.addLayout(center_column)
-        container_layout.addStretch(1)  # พื้นที่ยืดหยุ่นด้านขวา
+        container_layout.addStretch(1)
 
-        # เพิ่ม container เข้าไปใน main layout
         main_layout.addLayout(container_layout)
 
         self.setLayout(main_layout)
@@ -143,14 +123,11 @@ class LoginScreen(QWidget):
             )
             return
 
-        # ตรวจสอบว่า username เท่ากับ password หรือไม่
         if username == password:
-            # ตรวจสอบกับฐานข้อมูลว่าข้อมูลถูกต้องหรือไม่
             user_data = Auth.login(username, password)
             if user_data:
                 self.username_input.clear()
                 self.password_input.clear()
-                # ถ้าถูกต้อง ให้ไปที่หน้าเปลี่ยนรหัสผ่าน
                 self.parent_app.navigate_to_change_password(user_data)
                 return
             else:
@@ -161,7 +138,6 @@ class LoginScreen(QWidget):
                 )
                 return
 
-        # การเข้าสู่ระบบปกติ
         user_data = Auth.login(username, password)
         if user_data:
             self.username_input.clear()

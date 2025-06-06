@@ -236,19 +236,17 @@ def validate_edited_data(screen_instance):
     displayed_db_fields_in_table = screen_instance.column_mapper.get_fields_to_show()
 
     for (row, visual_col), new_value in screen_instance.edited_items.items():
-        if visual_col > 0:  # ข้าม column ลำดับ
+        if visual_col > 0:
             db_field_index = visual_col - 1
             if db_field_index < len(displayed_db_fields_in_table):
                 field_name = displayed_db_fields_in_table[db_field_index]
 
-                # ข้ามฟิลด์ที่ไม่สามารถแก้ไขได้
                 if (
                     field_name in screen_instance.LOGICAL_PK_FIELDS
                     or field_name in screen_instance.NON_EDITABLE_FIELDS
                 ):
                     continue
 
-                # ตรวจสอบข้อมูลตามกฎที่กำหนด
                 error = validate_field_value(
                     screen_instance, field_name, new_value, row + 1
                 )
@@ -268,17 +266,16 @@ class CustomMessageBox(QDialog):
         self.label.setFont(QFont("Arial", 12))
         self.layout.addWidget(self.label)
 
-        # สร้าง QHBoxLayout เพื่อจัดวางปุ่มให้อยู่ตรงกลาง
         button_layout = QHBoxLayout()
-        button_layout.addStretch()  # เพิ่มพื้นที่ว่างด้านซ้าย
+        button_layout.addStretch()
         self.ok_button = QPushButton("OK")
         self.ok_button.clicked.connect(self.accept)
         button_layout.addWidget(self.ok_button)
-        button_layout.addStretch()  # เพิ่มพื้นที่ว่างด้านขวา
+        button_layout.addStretch()
 
-        self.layout.addLayout(button_layout)  # เพิ่ม layout ของปุ่มใน layout หลัก
+        self.layout.addLayout(button_layout)
 
-        self.setMinimumWidth(400)  # กำหนดความกว้างขั้นต่ำ
+        self.setMinimumWidth(400)
 
 
 def show_validation_errors(screen_instance, errors):
@@ -286,7 +283,6 @@ def show_validation_errors(screen_instance, errors):
     if not errors:
         return
 
-    # จำกัดการแสดงผลไม่เกิน 20 ข้อผิดพลาด
     max_errors_to_show = 20
     errors_to_show = errors[:max_errors_to_show]
 
@@ -299,7 +295,6 @@ def show_validation_errors(screen_instance, errors):
 
     error_message += "\nกรุณาแก้ไขข้อมูลให้ถูกต้องก่อนบันทึก"
 
-    # ใช้ CustomMessageBox แทน QMessageBox
     dialog = CustomMessageBox(screen_instance, "ข้อมูลไม่ถูกต้อง", error_message)
     dialog.exec_()
 
@@ -308,16 +303,14 @@ def load_validation_data_from_excel(screen_instance):
     """โหลดข้อมูลการตรวจสอบจากไฟล์ Excel"""
     validation_data = {}
 
-    # กำหนดค่าเริ่มต้นในกรณีที่โหลดไฟล์ไม่ได้
     default_values = {
-        "LanguageOther": [f"{i:02d}" for i in range(2, 81)] + ["99"],  # ค่าเดิม
+        "LanguageOther": [f"{i:02d}" for i in range(2, 81)] + ["99"],
         "NationalityNumeric": [f"{i:03d}" for i in range(4, 910)]
         + ["000", "910", "920", "930", "940", "990", "997", "998", "999"],
-        "MovedFromAbroad": [f"{i:03d}" for i in range(0, 1000)],  # 000-999
+        "MovedFromAbroad": [f"{i:03d}" for i in range(0, 1000)],
     }
 
     try:
-        # โหลดข้อมูล LanguageOther
         language_other_path = resource_path("assets/language_other.xlsx")
         if os.path.exists(language_other_path):
             language_df = pd.read_excel(language_other_path)
@@ -328,7 +321,7 @@ def load_validation_data_from_excel(screen_instance):
                 language_codes = [
                     code.strip() for code in language_codes if code.strip()
                 ]
-                if language_codes:  # ถ้ามีข้อมูล
+                if language_codes:
                     validation_data["LanguageOther"] = language_codes
                 else:
                     validation_data["LanguageOther"] = default_values["LanguageOther"]
@@ -340,7 +333,6 @@ def load_validation_data_from_excel(screen_instance):
         validation_data["LanguageOther"] = default_values["LanguageOther"]
 
     try:
-        # โหลดข้อมูล NationalityNumeric
         nationality_path = resource_path("assets/nationality.xlsx")
         if os.path.exists(nationality_path):
             nationality_df = pd.read_excel(nationality_path)
@@ -354,7 +346,6 @@ def load_validation_data_from_excel(screen_instance):
                 nationality_codes = [
                     code.strip() for code in nationality_codes if code.strip()
                 ]
-                # เพิ่มรหัสพิเศษ
                 additional_codes = [
                     "000",
                     "910",
@@ -367,7 +358,7 @@ def load_validation_data_from_excel(screen_instance):
                     "999",
                 ]
                 nationality_codes.extend(additional_codes)
-                nationality_codes = list(set(nationality_codes))  # ลบค่าซ้ำ
+                nationality_codes = list(set(nationality_codes))
                 if nationality_codes:
                     validation_data["NationalityNumeric"] = nationality_codes
                 else:
@@ -384,7 +375,6 @@ def load_validation_data_from_excel(screen_instance):
         validation_data["NationalityNumeric"] = default_values["NationalityNumeric"]
 
     try:
-        # โหลดข้อมูล MovedFromAbroad
         country_path = resource_path("assets/country.xlsx")
         if os.path.exists(country_path):
             country_df = pd.read_excel(country_path)

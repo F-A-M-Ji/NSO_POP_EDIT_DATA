@@ -1,5 +1,6 @@
 import os
 import datetime
+import math
 
 from PyQt5.QtWidgets import (
     QWidget,
@@ -31,6 +32,8 @@ from backend.alldata_operations import (
     get_provinces_from_db,
     get_districts_from_db,
     get_subdistricts_from_db,
+    RECORDS_PER_PAGE,
+    count_search_r_alldata,
 )
 from frontend.widgets.multi_line_header import MultiLineHeaderView
 from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
@@ -43,14 +46,6 @@ from frontend.data_rules.edit_data_rules import (
     update_rules_from_excel_data,
 )
 from frontend.data_rules.edit_data_validation import (
-    validate_field_value,
-    _validate_excel_padded_number,
-    _validate_text,
-    _validate_options,
-    _validate_range,
-    _validate_custom,
-    _validate_int_range,
-    _validate_padded_number,
     validate_edited_data,
     show_validation_errors,
     load_validation_data_from_excel,
@@ -81,6 +76,13 @@ class EditDataScreen(QWidget):
         self.active_filters = {}
 
         self._all_db_fields_r_alldata = []
+
+        # === CHANGE START: เพิ่มตัวแปรสำหรับ Pagination ===
+        self.current_page = 1
+        self.total_records = 0
+        self.total_pages = 0
+        self.last_search_conditions = {}
+        # === CHANGE END ===
 
         self.validation_data_from_excel = load_validation_data_from_excel(self)
 
@@ -291,45 +293,67 @@ class EditDataScreen(QWidget):
         results_section = QFrame()
         results_section.setObjectName("resultsSection")
         results_layout = QVBoxLayout(results_section)
+        
+        # === CHANGE START: ปรับ Layout ส่วนหัวของตารางผลลัพธ์ ===
+        results_header_layout = QHBoxLayout()
         results_title = QLabel("ผลการค้นหา (ดับเบิ้ลคลิกเพื่อแก้ไข)")
         results_title.setObjectName("sectionTitle")
-        results_layout.addWidget(results_title)
-
-        status_layout = QHBoxLayout()
-
+        results_header_layout.addWidget(results_title)
+        results_header_layout.addStretch()
+        
         self.edit_status_label = QLabel("ไม่มีการแก้ไข")
-        status_layout.addWidget(self.edit_status_label)
+        self.edit_status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        results_header_layout.addWidget(self.edit_status_label)
 
-        status_layout.addStretch()
+        results_layout.addLayout(results_header_layout)
+        # === CHANGE END ===
 
         self.results_table = QTableWidget()
         self.setup_results_table()
         results_layout.addWidget(self.results_table)
-
+        
+        # === CHANGE START: สร้าง Layout ใหม่สำหรับ Pagination และปุ่ม Reset/Save ===
+        bottom_controls_layout = QHBoxLayout()
+        
+        # ส่วนของ Pagination (ซ้าย)
+        pagination_layout = QHBoxLayout()
+        self.prev_button = QPushButton("< ก่อนหน้า")
+        self.prev_button.setCursor(Qt.PointingHandCursor)
+        self.prev_button.clicked.connect(self.go_to_prev_page)
+        self.next_button = QPushButton("ถัดไป >")
+        self.next_button.setCursor(Qt.PointingHandCursor)
+        self.next_button.clicked.connect(self.go_to_next_page)
+        self.page_info_label = QLabel("")
+        
+        pagination_layout.addWidget(self.prev_button)
+        pagination_layout.addWidget(self.page_info_label)
+        pagination_layout.addWidget(self.next_button)
+        pagination_layout.addStretch()
+        
+        bottom_controls_layout.addLayout(pagination_layout)
+        
+        # ส่วนของปุ่ม Reset และ Save (ขวา)
         self.reset_edits_button = QPushButton("ยกเลิกการแก้ไข")
         self.reset_edits_button.setObjectName("secondaryButton")
         self.reset_edits_button.setCursor(Qt.PointingHandCursor)
         self.reset_edits_button.clicked.connect(self.reset_all_edits)
-        self.reset_edits_button.setVisible(False)
-
-        results_layout.addLayout(status_layout)
-
+        
         self.save_edits_button = QPushButton("บันทึกการแก้ไข")
         self.save_edits_button.setObjectName("primaryButton")
         self.save_edits_button.setCursor(Qt.PointingHandCursor)
         self.save_edits_button.clicked.connect(self.prompt_save_edits)
-        self.save_edits_button.setEnabled(False)
 
-        buttons_under_table_layout = QHBoxLayout()
-        buttons_under_table_layout.addStretch()
-        buttons_under_table_layout.addWidget(self.reset_edits_button)
-        buttons_under_table_layout.addWidget(self.save_edits_button)
-        results_layout.addLayout(buttons_under_table_layout)
+        bottom_controls_layout.addWidget(self.reset_edits_button)
+        bottom_controls_layout.addWidget(self.save_edits_button)
 
+        results_layout.addLayout(bottom_controls_layout)
+        # === CHANGE END ===
+        
         content_layout.addWidget(results_section, 1)
         main_layout.addWidget(self.content_frame, 1)
         self.setLayout(main_layout)
 
+        self.update_pagination_controls() # ตั้งค่าเริ่มต้น
         self.setup_table_headers_text_and_widths()
 
     def setup_results_table(self):
@@ -343,18 +367,7 @@ class EditDataScreen(QWidget):
         self.results_table.setGridStyle(Qt.SolidLine)
         self.results_table.verticalHeader().setVisible(False)
 
-        # === เพิ่มบรรทัดนี้เพื่อตรึงคอลัมน์แรก ===
-        # self.results_table.setFixedColumnCount(1)
-        # self.results_table.setColumnFrozen(0, True)
-        # =======================================
-
-        from frontend.widgets.multi_line_header import (
-            FilterableMultiLineHeaderView,
-        )
-
         self.header = FilterableMultiLineHeaderView(Qt.Horizontal, self.results_table)
-
-        from frontend.widgets.filters import apply_table_filter, clear_table_filter
 
         self.header.filter_requested.connect(
             lambda column, text, show_blank_only: apply_table_filter(
@@ -413,14 +426,27 @@ class EditDataScreen(QWidget):
             self.results_table.setColumnWidth(visual_col_idx, int(final_column_width))
 
         self.header.setSectionResizeMode(QHeaderView.Interactive)
-
-        self.header.style().unpolish(self.header)
+        self.header.style().unpolish(self)
         self.header.style().polish(self.header)
         self.header.updateGeometries()
         self.results_table.updateGeometries()
 
+    def revert_item_to_original(self, item, original_row_idx):
+        """Helper function to revert a single QTableWidgetItem to its original state."""
+        visual_col = item.column()
+        displayed_db_fields = self.column_mapper.get_fields_to_show()
+
+        if 0 <= (visual_col - 1) < len(displayed_db_fields):
+            db_field_name = displayed_db_fields[visual_col - 1]
+            original_value = self.original_data_cache[original_row_idx].get(
+                db_field_name
+            )
+            original_text = str(original_value) if original_value is not None else ""
+            item.setText(original_text)
+            item.setBackground(QBrush())
+
     def reset_all_edits(self):
-        """ยกเลิกการแก้ไขทั้งหมดและคืนค่าเดิม"""
+        """ยกเลิกการแก้ไขทั้งหมดและคืนค่าเดิม โดยทำงานได้ถูกต้องแม้มี filter"""
         if not self.edited_items:
             return
 
@@ -433,25 +459,47 @@ class EditDataScreen(QWidget):
         )
 
         if reply == QMessageBox.Yes:
-            displayed_db_fields = self.column_mapper.get_fields_to_show()
+            self.results_table.setUpdatesEnabled(False)
+            try:
+                self.results_table.itemChanged.disconnect(self.handle_item_changed)
+            except TypeError:
+                pass
 
-            for row, visual_col in list(self.edited_items.keys()):
-                item = self.results_table.item(row, visual_col)
-                if item and row < len(self.original_data_cache):
-                    db_field_col_idx = visual_col - 1
-                    if 0 <= db_field_col_idx < len(displayed_db_fields):
-                        db_field_name = displayed_db_fields[db_field_col_idx]
-                        original_value = self.original_data_cache[row].get(
-                            db_field_name
-                        )
-                        original_text = (
-                            str(original_value) if original_value is not None else ""
-                        )
-                        item.setText(original_text)
-                        item.setBackground(QBrush())
+            is_filtered = bool(self.active_filters)
+
+            if is_filtered:
+                pk_to_visual_row_map = {
+                    tuple(row.get(pk) for pk in self.LOGICAL_PK_FIELDS): i
+                    for i, row in enumerate(self.filtered_data_cache)
+                }
+
+                for original_row_idx, visual_col in list(self.edited_items.keys()):
+                    original_row_data = self.original_data_cache[original_row_idx]
+                    pk_tuple = tuple(
+                        original_row_data.get(pk) for pk in self.LOGICAL_PK_FIELDS
+                    )
+                    visual_row_to_update = pk_to_visual_row_map.get(pk_tuple, -1)
+
+                    if visual_row_to_update != -1:
+                        item = self.results_table.item(visual_row_to_update, visual_col)
+                        if item:
+                            self.revert_item_to_original(item, original_row_idx)
+
+            else:
+                for original_row_idx, visual_col in list(self.edited_items.keys()):
+                    if original_row_idx < self.results_table.rowCount():
+                        item = self.results_table.item(original_row_idx, visual_col)
+                        if item:
+                            self.revert_item_to_original(item, original_row_idx)
 
             self.edited_items.clear()
             self.update_save_button_state()
+
+            try:
+                self.results_table.itemChanged.connect(self.handle_item_changed)
+            except TypeError:
+                pass
+            self.results_table.setUpdatesEnabled(True)
 
     def update_save_button_state(self):
         """อัปเดตสถานะปุ่มบันทึก และแสดงข้อมูลการแก้ไขปัจจุบัน"""
@@ -459,70 +507,54 @@ class EditDataScreen(QWidget):
         edit_count = len(self.edited_items)
 
         self.save_edits_button.setEnabled(has_edits)
+        self.reset_edits_button.setVisible(has_edits)
 
         if has_edits:
             self.save_edits_button.setText(f"บันทึกการแก้ไข ({edit_count})")
+            self.edit_status_label.setText(f"มีการแก้ไข {edit_count} รายการ")
+            self.edit_status_label.setStyleSheet(
+                "color: #FF9800; font-style: italic; font-weight: bold;"
+            )
         else:
             self.save_edits_button.setText("บันทึกการแก้ไข")
-
-        if hasattr(self, "edit_status_label"):
-            if has_edits:
-                self.edit_status_label.setText(f"มีการแก้ไข {edit_count} รายการ")
-                self.edit_status_label.setStyleSheet(
-                    "color: #FF9800; font-style: italic; font-weight: bold;"
-                )
-            else:
-                self.edit_status_label.setText("ไม่มีการแก้ไข")
-                self.edit_status_label.setStyleSheet("")
-
-        if hasattr(self, "reset_edits_button"):
-            self.reset_edits_button.setVisible(has_edits)
+            self.edit_status_label.setText("ไม่มีการแก้ไข")
+            self.edit_status_label.setStyleSheet("")
 
     def handle_item_changed(self, item: QTableWidgetItem):
         """ตรวจสอบและจัดการการเปลี่ยนแปลงข้อมูลในตารางแบบเรียลไทม์"""
         if not item or not self.original_data_cache:
             return
 
-        row = item.row()
+        visual_row = item.row()
         visual_col = item.column()
 
         if visual_col == 0:
             return
 
         db_field_col_idx = visual_col - 1
-
-        if (
-            hasattr(self, "filtered_data_cache")
-            and self.filtered_data_cache
-            and row < len(self.filtered_data_cache)
-        ):
-            filtered_row_data = self.filtered_data_cache[row]
-            original_row_idx = -1
-
+        
+        is_filtered = bool(self.active_filters)
+        original_row_idx = -1
+        
+        current_data_source = self.filtered_data_cache if is_filtered else self.original_data_cache
+        
+        if visual_row < len(current_data_source):
+            row_data = current_data_source[visual_row]
+            pk_values = tuple(row_data.get(pk) for pk in self.LOGICAL_PK_FIELDS)
+            
             for i, original_row in enumerate(self.original_data_cache):
-                is_same_row = True
-                for pk_field in self.LOGICAL_PK_FIELDS:
-                    if original_row.get(pk_field) != filtered_row_data.get(pk_field):
-                        is_same_row = False
-                        break
-
-                if is_same_row:
+                pk_values_original = tuple(original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS)
+                if pk_values_original == pk_values:
                     original_row_idx = i
                     break
+        
+        if original_row_idx == -1:
+            return
 
-            if original_row_idx == -1:
-                return
-
-            original_row_dict = self.original_data_cache[original_row_idx]
-        else:
-            if row >= len(self.original_data_cache):
-                return
-            original_row_dict = self.original_data_cache[row]
-            original_row_idx = row
-
+        original_row_dict = self.original_data_cache[original_row_idx]
         displayed_db_fields = self.column_mapper.get_fields_to_show()
 
-        if db_field_col_idx >= len(displayed_db_fields) or db_field_col_idx < 0:
+        if db_field_col_idx >= len(displayed_db_fields):
             return
 
         db_field_name_for_column = displayed_db_fields[db_field_col_idx]
@@ -541,15 +573,11 @@ class EditDataScreen(QWidget):
         if original_value is None:
             original_value_str = ""
         elif isinstance(original_value, (int, float)):
-            if float(original_value).is_integer():
-                original_value_str = str(int(original_value))
-            else:
-                original_value_str = str(original_value)
+            original_value_str = str(int(original_value)) if float(original_value).is_integer() else str(original_value)
         else:
             original_value_str = str(original_value).strip()
 
         is_changed = original_value_str != new_text
-
         edit_key = (original_row_idx, visual_col)
 
         if is_changed:
@@ -563,8 +591,7 @@ class EditDataScreen(QWidget):
         self.update_save_button_state()
 
     def search_data(self):
-        """ค้นหาข้อมูล พร้อมเตือนถ้ามีการแก้ไขที่ยังไม่ได้บันทึก"""
-
+        """ค้นหาข้อมูลและเริ่มที่หน้า 1"""
         if self.edited_items:
             reply = QMessageBox.question(
                 self,
@@ -574,7 +601,6 @@ class EditDataScreen(QWidget):
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 QMessageBox.Cancel,
             )
-
             if reply == QMessageBox.Save:
                 self.execute_save_edits()
                 if self.edited_items:
@@ -582,43 +608,36 @@ class EditDataScreen(QWidget):
             elif reply == QMessageBox.Cancel:
                 return
 
-        if not self._all_db_fields_r_alldata:
-            self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
-            if not self._all_db_fields_r_alldata:
-                show_error_message(
-                    self,
-                    "Error",
-                    "โครงสร้างตาราง r_alldata_edit ไม่พร้อมใช้งาน ไม่สามารถค้นหาได้",
-                )
-                return
-
-        search_conditions = {}
-
-        location_codes = self.get_selected_codes()
-        search_conditions.update(location_codes)
-
-        additional_conditions = {
-            "AreaCode": self.get_selected_area_code(),
-            "EA_NO": self.get_selected_ea_no(),
-            "VilCode": self.get_selected_vil_code(),
-            "VilName": self.get_selected_vil_name(),
-            "BuildingNumber": self.get_selected_building_number(),
-            "HouseholdNumber": self.get_selected_household_number(),
-            "HouseholdMemberNumber": self.get_selected_household_member_number(),
-        }
-
-        for key, value in additional_conditions.items():
-            if value is not None:
-                search_conditions[key] = value
-
-        if all(value is None for value in search_conditions.values()):
+        self.current_page = 1
+        self.last_search_conditions = self.get_current_search_conditions()
+        
+        if all(value is None for value in self.last_search_conditions.values()):
             show_error_message(
                 self, "Search Error", "กรุณาเลือกเงื่อนไขในการค้นหาอย่างน้อยหนึ่งรายการ"
             )
             return
 
+        # นับจำนวนทั้งหมดก่อน
+        total, err = count_search_r_alldata(self.last_search_conditions)
+        if err:
+            show_error_message(self, "Search Error", err)
+            self.total_records = 0
+        else:
+            self.total_records = total
+        
+        self.total_pages = math.ceil(self.total_records / RECORDS_PER_PAGE) if RECORDS_PER_PAGE > 0 else 0
+        self.fetch_page_data()
+
+    def fetch_page_data(self):
+        """ดึงข้อมูลสำหรับหน้าปัจจุบัน"""
+        if not self.last_search_conditions:
+            return
+
+        if not self._all_db_fields_r_alldata:
+            self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
+        
         results, db_cols, error_msg = search_r_alldata(
-            search_conditions, self._all_db_fields_r_alldata, self.LOGICAL_PK_FIELDS
+            self.last_search_conditions, self._all_db_fields_r_alldata, self.LOGICAL_PK_FIELDS, self.current_page
         )
 
         if error_msg:
@@ -626,10 +645,8 @@ class EditDataScreen(QWidget):
             self.results_table.setRowCount(0)
             self.original_data_cache.clear()
             return
-
+        
         self.db_column_names = db_cols
-        self.edited_items.clear()
-        self.update_save_button_state()
         self.display_results(results)
 
     def display_results(self, results_tuples):
@@ -640,32 +657,28 @@ class EditDataScreen(QWidget):
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
             pass
-
+        
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
-
+        
         if hasattr(self, "filtered_data_cache"):
             self.filtered_data_cache.clear()
         if hasattr(self, "active_filters"):
             self.active_filters.clear()
-
-        if hasattr(self, "header") and hasattr(self.header, "clear_all_filters"):
+        if hasattr(self, "header"):
             self.header.clear_all_filters()
 
         self.edited_items.clear()
         self.update_save_button_state()
-
-        if not results_tuples:
-            if self.results_table.columnCount() > 0:
-                from frontend.utils.error_message import show_info_message
-
-                show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
+        
+        if not self.total_records > 0:
+            show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
             self.results_table.setRowCount(len(results_tuples))
             displayed_db_fields_in_table = self.column_mapper.get_fields_to_show()
 
             for row_idx, db_row_tuple in enumerate(results_tuples):
-                sequence_text = str(row_idx + 1)
+                sequence_text = str((self.current_page - 1) * RECORDS_PER_PAGE + row_idx + 1)
                 sequence_item = QTableWidgetItem(sequence_text)
                 sequence_item.setTextAlignment(Qt.AlignCenter)
                 flags = sequence_item.flags()
@@ -682,18 +695,10 @@ class EditDataScreen(QWidget):
                     displayed_db_fields_in_table
                 ):
                     visual_col_idx_table = db_field_idx + 1
-
-                    cell_value = ""
-                    if displayed_field_name in current_row_full_data_dict:
-                        raw_value = current_row_full_data_dict[displayed_field_name]
-                        cell_value = str(raw_value) if raw_value is not None else ""
-
+                    cell_value = str(current_row_full_data_dict.get(displayed_field_name, ''))
                     item = QTableWidgetItem(cell_value)
-                    if displayed_field_name in ["FirstName", "LastName"]:
-                        item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)  # ชิดซ้าย
-                    else:
-                        item.setTextAlignment(Qt.AlignCenter)  # ตรงกลางเหมือนเดิม
-
+                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter if displayed_field_name in ["FirstName", "LastName"] else Qt.AlignCenter)
+                    
                     if (
                         displayed_field_name in self.LOGICAL_PK_FIELDS
                         or displayed_field_name in self.NON_EDITABLE_FIELDS
@@ -706,6 +711,50 @@ class EditDataScreen(QWidget):
 
         self.results_table.itemChanged.connect(self.handle_item_changed)
         self.results_table.setUpdatesEnabled(True)
+        self.update_pagination_controls()
+
+    def go_to_prev_page(self):
+        """ไปยังหน้าก่อนหน้า"""
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.fetch_page_data()
+
+    def go_to_next_page(self):
+        """ไปยังหน้าถัดไป"""
+        if self.current_page < self.total_pages:
+            self.current_page += 1
+            self.fetch_page_data()
+
+    def update_pagination_controls(self):
+        """อัปเดตสถานะของปุ่มและข้อความ Pagination"""
+        if self.total_records > 0:
+            self.page_info_label.setText(f"หน้า {self.current_page} / {self.total_pages} (ทั้งหมด {self.total_records} รายการ)")
+            self.prev_button.setEnabled(self.current_page > 1)
+            self.next_button.setEnabled(self.current_page < self.total_pages)
+        else:
+            self.page_info_label.setText("")
+            self.prev_button.setEnabled(False)
+            self.next_button.setEnabled(False)
+
+    def get_current_search_conditions(self):
+        """รวบรวมเงื่อนไขการค้นหาปัจจุบัน"""
+        conditions = {}
+        location_codes = self.get_selected_codes()
+        conditions.update(location_codes)
+        
+        additional_conditions = {
+            "AreaCode": self.get_selected_area_code(),
+            "EA_NO": self.get_selected_ea_no(),
+            "VilCode": self.get_selected_vil_code(),
+            "VilName": self.get_selected_vil_name(),
+            "BuildingNumber": self.get_selected_building_number(),
+            "HouseholdNumber": self.get_selected_household_number(),
+            "HouseholdMemberNumber": self.get_selected_household_member_number(),
+        }
+        for key, value in additional_conditions.items():
+            if value is not None:
+                conditions[key] = value
+        return conditions
 
     def prompt_save_edits(self):
         if self.results_table.state() == QAbstractItemView.EditingState:
@@ -751,45 +800,33 @@ class EditDataScreen(QWidget):
         list_of_records_to_save = []
         displayed_db_fields_in_table = self.column_mapper.get_fields_to_show()
 
-        edited_table_row_indices = sorted(
+        edited_original_row_indices = sorted(
             list(set(row_col[0] for row_col in self.edited_items.keys()))
         )
 
-        if not edited_table_row_indices:
-            show_info_message(self, "ไม่มีการเปลี่ยนแปลง", "ไม่มีข้อมูลที่แตกต่างจากเดิมให้บันทึก")
-            self.save_edits_button.setEnabled(False)
-            return
-
-        for table_row_idx in edited_table_row_indices:
-            if table_row_idx >= len(self.original_data_cache):
+        for original_row_idx in edited_original_row_indices:
+            if original_row_idx >= len(self.original_data_cache):
                 continue
 
-            data_for_this_row_dict = self.original_data_cache[table_row_idx].copy()
-
+            data_for_this_row_dict = self.original_data_cache[original_row_idx].copy()
             has_actual_edits_for_db = False
+            
             for (r_edit, c_visual), new_text_val in self.edited_items.items():
-                if r_edit == table_row_idx:
-                    if c_visual > 0:
-                        db_field_index = c_visual - 1
-                        if db_field_index < len(displayed_db_fields_in_table):
-                            db_field_name_for_edit = displayed_db_fields_in_table[
-                                db_field_index
-                            ]
+                if r_edit == original_row_idx:
+                    db_field_index = c_visual - 1
+                    if 0 <= db_field_index < len(displayed_db_fields_in_table):
+                        db_field_name_for_edit = displayed_db_fields_in_table[db_field_index]
 
-                            if (
-                                db_field_name_for_edit in self.LOGICAL_PK_FIELDS
-                                or db_field_name_for_edit in self.NON_EDITABLE_FIELDS
-                            ):
-                                continue
-
-                            data_for_this_row_dict[db_field_name_for_edit] = (
-                                new_text_val if new_text_val else None
-                            )
-                            has_actual_edits_for_db = True
-                        else:
-                            print(
-                                f"Warning: Column visual index {c_visual} (DB index {db_field_index}) out of bounds for displayed DB fields in row {r_edit}."
-                            )
+                        if (
+                            db_field_name_for_edit in self.LOGICAL_PK_FIELDS
+                            or db_field_name_for_edit in self.NON_EDITABLE_FIELDS
+                        ):
+                            continue
+                        
+                        data_for_this_row_dict[db_field_name_for_edit] = (
+                            new_text_val if new_text_val else None
+                        )
+                        has_actual_edits_for_db = True
 
             if has_actual_edits_for_db:
                 data_for_this_row_dict["fullname"] = editor_fullname
@@ -800,64 +837,62 @@ class EditDataScreen(QWidget):
             show_info_message(
                 self,
                 "ข้อมูลล่าสุด",
-                "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก (อาจเป็นเพราะการเปลี่ยนแปลงถูกละเว้น)",
+                "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก",
             )
-            for r_idx, c_idx in list(self.edited_items.keys()):
-                item = self.results_table.item(r_idx, c_idx)
-                if item:
-                    item.setBackground(QBrush())
             self.edited_items.clear()
-            self.save_edits_button.setEnabled(False)
+            self.update_save_button_state()
             return
-
+            
         saved_count, error_msg = save_edited_r_alldata_rows(
             list_of_records_to_save, self._all_db_fields_r_alldata
         )
 
         if error_msg:
             show_error_message(self, "Save Error", error_msg)
+            return
+
+        if saved_count > 0:
+            show_info_message(
+                self, "สำเร็จ", f"บันทึกข้อมูลที่แก้ไขจำนวน {saved_count} แถวเรียบร้อยแล้ว"
+            )
+
+            # === FIX START: Update local cache and re-apply filters instead of re-fetching ===
+            # Create a dictionary of saved records for quick lookup
+            saved_records_dict = {}
+            for record in list_of_records_to_save:
+                pk_tuple = tuple(record.get(pk) for pk in self.LOGICAL_PK_FIELDS)
+                saved_records_dict[pk_tuple] = record
+
+            # Update the main data cache (original_data_cache)
+            for i, original_row in enumerate(self.original_data_cache):
+                pk_tuple_original = tuple(original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS)
+                if pk_tuple_original in saved_records_dict:
+                    # Update this row with the saved data
+                    updated_record = saved_records_dict[pk_tuple_original]
+                    self.original_data_cache[i].update(updated_record)
+
+            # Clear edits and update button states
+            self.edited_items.clear()
+            self.update_save_button_state()
+
+            # Re-apply the current table filters to refresh the view
+            # This will use the updated original_data_cache
+            filter_table_data(self)
+            # === FIX END ===
         else:
-            if saved_count > 0:
-                show_info_message(
-                    self, "สำเร็จ", f"บันทึกข้อมูลที่แก้ไขจำนวน {saved_count} แถวเรียบร้อยแล้ว"
-                )
-                for r_idx, c_idx in list(self.edited_items.keys()):
-                    item = self.results_table.item(r_idx, c_idx)
-                    if item:
-                        item.setBackground(QBrush())
-                self.edited_items.clear()
-                self.update_save_button_state()
-                self.search_data()
-            else:
-                show_info_message(
-                    self,
-                    "ข้อมูลล่าสุด",
-                    "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม หรือ ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก",
-                )
-                if not list_of_records_to_save and self.edited_items:
-                    for r_idx, c_idx in list(self.edited_items.keys()):
-                        item = self.results_table.item(r_idx, c_idx)
-                        if item:
-                            item.setBackground(QBrush())
-                    self.edited_items.clear()
-                    self.save_edits_button.setEnabled(False)
-                    self.search_data()
-                else:
-                    show_info_message(
-                        self,
-                        "ข้อมูลล่าสุด",
-                        "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม หรือ ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก",
-                    )
+            show_info_message(
+                self,
+                "ข้อมูลล่าสุด",
+                "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม",
+            )
+            self.edited_items.clear()
+            self.update_save_button_state()
 
     def reset_screen_state(self):
         """รีเซ็ตสถานะหน้าจอ"""
-        # รีเซ็ต dropdown ภาค
         self.region_combo.setCurrentIndex(0)
-
-        # กลับไปสถานะเริ่มต้น - แสดงเฉพาะ "--เลือกภาค--"
         self.setup_initial_dropdown_state()
 
-        # ส่วนที่เหลือเหมือนเดิม...
         try:
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
@@ -870,10 +905,15 @@ class EditDataScreen(QWidget):
         self.db_column_names = []
         self.edited_items.clear()
         self.active_filters.clear()
+        self.last_search_conditions = {}
+        self.current_page = 1
+        self.total_records = 0
+        self.total_pages = 0
 
         if hasattr(self, "header"):
             self.header.clear_all_filters()
-
+            
+        self.update_pagination_controls()
         self.update_save_button_state()
 
         if hasattr(self, "user_fullname_label"):
@@ -881,30 +921,7 @@ class EditDataScreen(QWidget):
 
     def clear_search(self):
         """ล้างการค้นหาทั้งหมด"""
-        # รีเซ็ต dropdown ภาค
-        self.region_combo.setCurrentIndex(0)
-
-        # กลับไปสถานะเริ่มต้น - แสดงเฉพาะ "--เลือกภาค--"
-        self.setup_initial_dropdown_state()
-
-        # ส่วนที่เหลือเหมือนเดิม...
-        try:
-            self.results_table.itemChanged.disconnect(self.handle_item_changed)
-        except TypeError:
-            pass
-        self.results_table.setRowCount(0)
-        self.results_table.itemChanged.connect(self.handle_item_changed)
-
-        self.original_data_cache.clear()
-        self.filtered_data_cache.clear()
-        self.db_column_names = []
-        self.edited_items.clear()
-        self.active_filters.clear()
-
-        if hasattr(self, "header"):
-            self.header.clear_all_filters()
-
-        self.update_save_button_state()
+        self.reset_screen_state()
 
     def logout(self):
         if self.edited_items:
@@ -928,9 +945,7 @@ class EditDataScreen(QWidget):
         """โหลดข้อมูลเริ่มต้น"""
         try:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
-
             self.load_regions()
-
             self.setup_initial_dropdown_state()
 
         except Exception as e:
@@ -938,13 +953,9 @@ class EditDataScreen(QWidget):
 
     def setup_initial_dropdown_state(self):
         """ตั้งค่าสถานะเริ่มต้นของ dropdown ทั้งหมด"""
-
         self.province_combo.clear()
-
         self.district_combo.clear()
-
         self.subdistrict_combo.clear()
-
         self.area_code_combo.clear()
         self.ea_no_combo.clear()
         self.vil_code_combo.clear()
@@ -959,657 +970,25 @@ class EditDataScreen(QWidget):
             self.region_combo.blockSignals(True)
             self.region_combo.clear()
             self.region_combo.addItem("-- เลือกภาค --")
-
-            regions = get_regions_from_db()
-            for region in regions:
+            for region in get_regions_from_db():
                 self.region_combo.addItem(region["display"])
                 self.region_combo.setItemData(
                     self.region_combo.count() - 1, region["code"]
                 )
-
             self.region_combo.blockSignals(False)
-
         except Exception as e:
             print(f"Error loading regions: {e}")
-
-    def load_provinces(self, reg_code=None):
-        """โหลดข้อมูลจังหวัด"""
-        try:
-            self.province_combo.blockSignals(True)
-            self.province_combo.clear()
-            self.province_combo.addItem("-- เลือกจังหวัด --")
-
-            provinces = get_provinces_from_db(reg_code)
-            for province in provinces:
-                self.province_combo.addItem(province["display"])
-                self.province_combo.setItemData(
-                    self.province_combo.count() - 1, province["code"]
-                )
-
-            self.province_combo.blockSignals(False)
-
-        except Exception as e:
-            print(f"Error loading provinces: {e}")
-
-    def load_districts(self, prov_code=None):
-        """โหลดข้อมูลอำเภอ/เขต"""
-        try:
-            self.district_combo.blockSignals(True)
-            self.district_combo.clear()
-            self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
-
-            districts = get_districts_from_db(prov_code)
-            for district in districts:
-                self.district_combo.addItem(district["display"])
-                self.district_combo.setItemData(
-                    self.district_combo.count() - 1, district["code"]
-                )
-
-            self.district_combo.blockSignals(False)
-
-        except Exception as e:
-            print(f"Error loading districts: {e}")
-
-    def load_subdistricts(self, dist_code=None, prov_code=None):
-        """โหลดข้อมูลตำบล/แขวง"""
-        try:
-            self.subdistrict_combo.blockSignals(True)
-            self.subdistrict_combo.clear()
-            self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
-
-            subdistricts = get_subdistricts_from_db(dist_code, prov_code)
-            for subdistrict in subdistricts:
-                self.subdistrict_combo.addItem(subdistrict["display"])
-                self.subdistrict_combo.setItemData(
-                    self.subdistrict_combo.count() - 1, subdistrict["code"]
-                )
-
-            self.subdistrict_combo.blockSignals(False)
-
-        except Exception as e:
-            print(f"Error loading subdistricts: {e}")
-
-    def on_region_changed(self, index):
-        """เมื่อเปลี่ยนภาค"""
-        self.province_combo.blockSignals(True)
-        self.district_combo.blockSignals(True)
-        self.subdistrict_combo.blockSignals(True)
-
-        # ล้าง dropdown ทั้งหมดหลังจากจังหวัด
-        self.clear_province_and_below_without_placeholder()
-
-        if index > 0:  # ถ้าเลือกภาคที่ไม่ใช่ "--เลือกภาค--"
-            reg_code = self.region_combo.itemData(index)
-            if reg_code:
-                # โหลดข้อมูลจังหวัดและเพิ่มข้อความ "--เลือกจังหวัด--"
-                self.load_provinces_with_placeholder(reg_code)
-        else:
-            # ถ้าเลือกกลับไปเป็น "--เลือกภาค--" ให้ล้างจังหวัดโดยไม่มี placeholder
-            self.province_combo.clear()
-
-        self.province_combo.blockSignals(False)
-        self.district_combo.blockSignals(False)
-        self.subdistrict_combo.blockSignals(False)
-
-    def on_province_changed(self, index):
-        """เมื่อเปลี่ยนจังหวัด"""
-        self.district_combo.blockSignals(True)
-        self.subdistrict_combo.blockSignals(True)
-
-        # ล้าง dropdown ทั้งหมดหลังจากอำเภอ
-        self.clear_district_and_below_without_placeholder()
-
-        if index > 0:  # ถ้าเลือกจังหวัดที่ไม่ใช่ "--เลือกจังหวัด--"
-            prov_code = self.province_combo.itemData(index)
-            if prov_code:
-                # โหลดข้อมูลอำเภอและเพิ่มข้อความ "--เลือกอำเภอ/เขต--"
-                self.load_districts_with_placeholder(prov_code)
-        else:
-            # ถ้าเลือกกลับไปเป็น "--เลือกจังหวัด--" ให้ล้างอำเภอโดยไม่มี placeholder
-            self.district_combo.clear()
-
-        self.district_combo.blockSignals(False)
-        self.subdistrict_combo.blockSignals(False)
-
-    def on_district_changed(self, index):
-        """เมื่อเปลี่ยนอำเภอ/เขต"""
-        self.subdistrict_combo.blockSignals(True)
-
-        # ล้าง dropdown ทั้งหมดหลังจากตำบล
-        self.clear_subdistrict_and_below_without_placeholder()
-
-        if index > 0:  # ถ้าเลือกอำเภอที่ไม่ใช่ "--เลือกอำเภอ/เขต--"
-            dist_code = self.district_combo.itemData(index)
-            prov_code = self.get_selected_province_code()
-            if dist_code:
-                # โหลดข้อมูลตำบลและเพิ่มข้อความ "--เลือกตำบล/แขวง--"
-                self.load_subdistricts_with_placeholder(dist_code, prov_code)
-        else:
-            # ถ้าเลือกกลับไปเป็น "--เลือกอำเภอ/เขต--" ให้ล้างตำบลโดยไม่มี placeholder
-            self.subdistrict_combo.clear()
-
-        self.subdistrict_combo.blockSignals(False)
-
-    def get_selected_province_code(self):
-        """ดึงรหัสจังหวัดที่เลือก"""
-        if self.province_combo.currentIndex() > 0:
-            return self.province_combo.itemData(self.province_combo.currentIndex())
-        return None
-
-    def on_subdistrict_changed(self, index):
-        """เมื่อเปลี่ยนตำบล ให้แสดงเฉพาะ dropdown ถัดไปเท่านั้น"""
-        self.area_code_combo.blockSignals(True)
-
-        # ล้าง dropdown ทั้งหมดหลังจาก area code
-        self.clear_area_code_and_below_without_placeholder()
-
-        if index > 0:  # ถ้าเลือกตำบลที่ไม่ใช่ "--เลือกตำบล/แขวง--"
-            # แสดงเฉพาะ area_code_combo และโหลดข้อมูลจริง
-            self.area_code_combo.clear()
-            self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
-            self.populate_area_code()
-        # ถ้าเลือกกลับไปเป็น "--เลือกตำบล/แขวง--" dropdown ที่เหลือจะว่างเปล่า
-
-        self.area_code_combo.blockSignals(False)
-
-    def on_area_code_changed(self, index):
-        """เมื่อเปลี่ยน area code"""
-        self.ea_no_combo.blockSignals(True)
-        self.clear_ea_no_and_below_without_placeholder()
-
-        if index > 0:  # เลือก area code ที่ไม่ใช่ "--เลือก...--"
-            # แสดงเฉพาะ ea_no_combo และโหลดข้อมูลจริง
-            self.ea_no_combo.clear()
-            self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
-            self.populate_ea_no()
-
-        self.ea_no_combo.blockSignals(False)
-
-    def on_ea_no_changed(self, index):
-        """เมื่อเปลี่ยน EA_NO"""
-        self.vil_code_combo.blockSignals(True)
-        self.clear_vil_code_and_below_without_placeholder()
-
-        if index > 0:  # เลือก EA_NO ที่ไม่ใช่ "--เลือก...--"
-            # แสดงเฉพาะ vil_code_combo และโหลดข้อมูลจริง
-            self.vil_code_combo.clear()
-            self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
-            self.populate_vil_code()
-
-        self.vil_code_combo.blockSignals(False)
-
-    def on_vil_code_changed(self, index):
-        """เมื่อเปลี่ยน VilCode"""
-        self.vil_name_combo.blockSignals(True)
-        self.clear_vil_name_and_below_without_placeholder()
-
-        if index > 0:  # เลือก VilCode ที่ไม่ใช่ "--เลือก...--"
-            # แสดงเฉพาะ vil_name_combo และโหลดข้อมูลจริง
-            self.vil_name_combo.clear()
-            self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
-            self.populate_vil_name()
-
-        self.vil_name_combo.blockSignals(False)
-
-    def on_vil_name_changed(self, index):
-        """เมื่อเปลี่ยน VilName"""
-        self.building_number_combo.blockSignals(True)
-        self.clear_building_number_and_below_without_placeholder()
-
-        if index > 0:  # เลือก VilName ที่ไม่ใช่ "--เลือก...--"
-            # แสดงเฉพาะ building_number_combo และโหลดข้อมูลจริง
-            self.building_number_combo.clear()
-            self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
-            self.populate_building_number()
-
-        self.building_number_combo.blockSignals(False)
-
-    def on_building_number_changed(self, index):
-        """เมื่อเปลี่ยน BuildingNumber"""
-        self.household_number_combo.blockSignals(True)
-        self.clear_household_number_and_below_without_placeholder()
-
-        if index > 0:  # เลือก BuildingNumber ที่ไม่ใช่ "--เลือก...--"
-            # แสดงเฉพาะ household_number_combo และโหลดข้อมูลจริง
-            self.household_number_combo.clear()
-            self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
-            self.populate_household_number()
-
-        self.household_number_combo.blockSignals(False)
-
-    def on_household_number_changed(self, index):
-        """เมื่อเปลี่ยน HouseholdNumber"""
-        self.household_member_number_combo.blockSignals(True)
-        self.clear_household_member_number_and_below_without_placeholder()
-
-        if index > 0:  # เลือก HouseholdNumber ที่ไม่ใช่ "--เลือก...--"
-            # แสดงเฉพาะ household_member_number_combo และโหลดข้อมูลจริง
-            self.household_member_number_combo.clear()
-            self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
-            self.populate_household_member_number()
-
-        self.household_member_number_combo.blockSignals(False)
-
-    def on_household_member_number_changed(self, index):
-        pass
-
-    def get_selected_codes(self):
-        """ดึงรหัสที่เลือกจาก dropdown ทั้งหมด"""
-        codes = {}
-
-        if self.region_combo.currentIndex() > 0:
-            reg_code = self.region_combo.itemData(self.region_combo.currentIndex())
-            if reg_code:
-                codes["RegCode"] = reg_code
-
-        if self.province_combo.currentIndex() > 0:
-            prov_code = self.province_combo.itemData(self.province_combo.currentIndex())
-            if prov_code:
-                codes["ProvCode"] = prov_code
-
-        if self.district_combo.currentIndex() > 0:
-            dist_code = self.district_combo.itemData(self.district_combo.currentIndex())
-            if dist_code:
-                codes["DistCode"] = dist_code
-
-        if self.subdistrict_combo.currentIndex() > 0:
-            subdist_code = self.subdistrict_combo.itemData(
-                self.subdistrict_combo.currentIndex()
-            )
-            if subdist_code:
-                codes["SubDistCode"] = subdist_code
-
-        return codes
-
-    def populate_area_code(self):
-        """เติมข้อมูล AreaCode dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_subdistrict()
-
-        area_codes = get_distinct_values("AreaCode", where_conditions, where_params)
-        area_name_mapping = get_area_name_mapping()
-
-        self.area_code_combo.clear()
-        self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
-
-        for code in area_codes:
-            if code == "":
-                display_text = "-- Blank --"
-            else:
-                display_name = area_name_mapping.get(code, code)
-                display_text = f"{display_name}" if display_name else code
-
-            self.area_code_combo.addItem(display_text)
-            self.area_code_combo.setItemData(self.area_code_combo.count() - 1, code)
-
-    def populate_ea_no(self):
-        """เติมข้อมูล EA_NO dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_area_code()
-
-        ea_nos = get_distinct_values("EA_NO", where_conditions, where_params)
-
-        self.ea_no_combo.clear()
-        self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
-
-        for ea_no in ea_nos:
-            display_text = "-- Blank --" if ea_no == "" else ea_no
-            self.ea_no_combo.addItem(display_text)
-            self.ea_no_combo.setItemData(self.ea_no_combo.count() - 1, ea_no)
-
-    def populate_vil_code(self):
-        """เติมข้อมูล VilCode dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_ea_no()
-
-        vil_codes = get_distinct_values("VilCode", where_conditions, where_params)
-
-        self.vil_code_combo.clear()
-        self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
-
-        for vil_code in vil_codes:
-            display_text = "-- Blank --" if vil_code == "" else vil_code
-            self.vil_code_combo.addItem(display_text)
-            self.vil_code_combo.setItemData(self.vil_code_combo.count() - 1, vil_code)
-
-    def populate_vil_name(self):
-        """เติมข้อมูล VilName dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_vil_code()
-
-        vil_names = get_distinct_values("VilName", where_conditions, where_params)
-
-        self.vil_name_combo.clear()
-        self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
-
-        for vil_name in vil_names:
-            display_text = "-- Blank --" if vil_name == "" else vil_name
-            self.vil_name_combo.addItem(display_text)
-            self.vil_name_combo.setItemData(self.vil_name_combo.count() - 1, vil_name)
-
-    def populate_building_number(self):
-        """เติมข้อมูล BuildingNumber dropdown"""
-        where_conditions, where_params = self.build_where_conditions_up_to_vil_name()
-
-        building_numbers = get_distinct_values(
-            "BuildingNumber", where_conditions, where_params
-        )
-
-        self.building_number_combo.clear()
-        self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
-
-        for building_number in building_numbers:
-            display_text = "-- Blank --" if building_number == "" else building_number
-            self.building_number_combo.addItem(display_text)
-            self.building_number_combo.setItemData(
-                self.building_number_combo.count() - 1, building_number
-            )
-
-    def populate_household_number(self):
-        """เติมข้อมูล HouseholdNumber dropdown"""
-        where_conditions, where_params = (
-            self.build_where_conditions_up_to_building_number()
-        )
-
-        household_numbers = get_distinct_values(
-            "HouseholdNumber", where_conditions, where_params
-        )
-
-        self.household_number_combo.clear()
-        self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
-
-        for household_number in household_numbers:
-            display_text = "-- Blank --" if household_number == "" else household_number
-            self.household_number_combo.addItem(display_text)
-            self.household_number_combo.setItemData(
-                self.household_number_combo.count() - 1, household_number
-            )
-
-    def populate_household_member_number(self):
-        """เติมข้อมูล HouseholdMemberNumber dropdown"""
-        where_conditions, where_params = (
-            self.build_where_conditions_up_to_household_number()
-        )
-
-        member_numbers = get_distinct_values(
-            "HouseholdMemberNumber", where_conditions, where_params
-        )
-
-        self.household_member_number_combo.clear()
-        self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
-
-        for member_number in member_numbers:
-            display_text = "-- Blank --" if member_number == "" else member_number
-            self.household_member_number_combo.addItem(display_text)
-            self.household_member_number_combo.setItemData(
-                self.household_member_number_combo.count() - 1, member_number
-            )
-
-    def clear_area_code_and_below(self):
-        """ล้าง AreaCode และ dropdown ข้างล่าง"""
-        self.area_code_combo.clear()
-        self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
-        self.clear_ea_no_and_below()
-
-    def clear_ea_no_and_below(self):
-        """ล้าง EA_NO และ dropdown ข้างล่าง"""
-        self.ea_no_combo.clear()
-        self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
-        self.clear_vil_code_and_below()
-
-    def clear_vil_code_and_below(self):
-        """ล้าง VilCode และ dropdown ข้างล่าง"""
-        self.vil_code_combo.clear()
-        self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
-        self.clear_vil_name_and_below()
-
-    def clear_vil_name_and_below(self):
-        """ล้าง VilName และ dropdown ข้างล่าง"""
-        self.vil_name_combo.clear()
-        self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
-        self.clear_building_number_and_below()
-
-    def clear_building_number_and_below(self):
-        """ล้าง BuildingNumber และ dropdown ข้างล่าง"""
-        self.building_number_combo.clear()
-        self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
-        self.clear_household_number_and_below()
-
-    def clear_household_number_and_below(self):
-        """ล้าง HouseholdNumber และ dropdown ข้างล่าง"""
-        self.household_number_combo.clear()
-        self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
-        self.clear_household_member_number_and_below()
-
-    def clear_household_member_number_and_below(self):
-        """ล้าง HouseholdMemberNumber dropdown"""
-        self.household_member_number_combo.clear()
-        self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
-
-    def build_where_conditions_up_to_subdistrict(self):
-        """สร้าง WHERE conditions จนถึงระดับตำบล"""
-        conditions = []
-        params = []
-
-        codes = self.get_selected_codes()
-        for key, value in codes.items():
-            if value is not None:
-                conditions.append(f"[{key}] = ?")
-                params.append(value)
-
-        return " AND ".join(conditions) if conditions else None, params
-
-    def build_where_conditions_up_to_area_code(self):
-        """สร้าง WHERE conditions จนถึง AreaCode"""
-        base_conditions, base_params = self.build_where_conditions_up_to_subdistrict()
-
-        area_code_value = self.get_selected_area_code()
-        if area_code_value is not None:
-            if area_code_value == "":
-                area_condition = "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')"
-            else:
-                area_condition = "[AreaCode] = ?"
-
-            if base_conditions:
-                conditions = f"{base_conditions} AND {area_condition}"
-            else:
-                conditions = area_condition
-
-            params = base_params.copy()
-            if area_code_value != "":
-                params.append(area_code_value)
-        else:
-            conditions = base_conditions
-            params = base_params
-
-        return conditions, params
-
-    def build_where_conditions_up_to_ea_no(self):
-        """สร้าง WHERE conditions จนถึง EA_NO"""
-        base_conditions, base_params = self.build_where_conditions_up_to_area_code()
-
-        ea_no_value = self.get_selected_ea_no()
-        if ea_no_value is not None:
-            if ea_no_value == "":
-                ea_condition = (
-                    "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')"
-                )
-            else:
-                ea_condition = "[EA_NO] = ?"
-
-            if base_conditions:
-                conditions = f"{base_conditions} AND {ea_condition}"
-            else:
-                conditions = ea_condition
-
-            params = base_params.copy()
-            if ea_no_value != "":
-                params.append(ea_no_value)
-        else:
-            conditions = base_conditions
-            params = base_params
-
-        return conditions, params
-
-    def build_where_conditions_up_to_vil_code(self):
-        """สร้าง WHERE conditions จนถึง VilCode"""
-        base_conditions, base_params = self.build_where_conditions_up_to_ea_no()
-
-        vil_code_value = self.get_selected_vil_code()
-        if vil_code_value is not None:
-            if vil_code_value == "":
-                vil_condition = "([VilCode] IS NULL OR [VilCode] = '' OR LTRIM(RTRIM([VilCode])) = '')"
-            else:
-                vil_condition = "[VilCode] = ?"
-
-            if base_conditions:
-                conditions = f"{base_conditions} AND {vil_condition}"
-            else:
-                conditions = vil_condition
-
-            params = base_params.copy()
-            if vil_code_value != "":
-                params.append(vil_code_value)
-        else:
-            conditions = base_conditions
-            params = base_params
-
-        return conditions, params
-
-    def build_where_conditions_up_to_vil_name(self):
-        """สร้าง WHERE conditions จนถึง VilName"""
-        base_conditions, base_params = self.build_where_conditions_up_to_vil_code()
-
-        vil_name_value = self.get_selected_vil_name()
-        if vil_name_value is not None:
-            if vil_name_value == "":
-                vil_name_condition = "([VilName] IS NULL OR [VilName] = '' OR LTRIM(RTRIM([VilName])) = '')"
-            else:
-                vil_name_condition = "[VilName] = ?"
-
-            if base_conditions:
-                conditions = f"{base_conditions} AND {vil_name_condition}"
-            else:
-                conditions = vil_name_condition
-
-            params = base_params.copy()
-            if vil_name_value != "":
-                params.append(vil_name_value)
-        else:
-            conditions = base_conditions
-            params = base_params
-
-        return conditions, params
-
-    def build_where_conditions_up_to_building_number(self):
-        """สร้าง WHERE conditions จนถึง BuildingNumber"""
-        base_conditions, base_params = self.build_where_conditions_up_to_vil_name()
-
-        building_number_value = self.get_selected_building_number()
-        if building_number_value is not None:
-            if building_number_value == "":
-                building_condition = "([BuildingNumber] IS NULL OR [BuildingNumber] = '' OR LTRIM(RTRIM([BuildingNumber])) = '')"
-            else:
-                building_condition = "[BuildingNumber] = ?"
-
-            if base_conditions:
-                conditions = f"{base_conditions} AND {building_condition}"
-            else:
-                conditions = building_condition
-
-            params = base_params.copy()
-            if building_number_value != "":
-                params.append(building_number_value)
-        else:
-            conditions = base_conditions
-            params = base_params
-
-        return conditions, params
-
-    def build_where_conditions_up_to_household_number(self):
-        """สร้าง WHERE conditions จนถึง HouseholdNumber"""
-        base_conditions, base_params = (
-            self.build_where_conditions_up_to_building_number()
-        )
-
-        household_number_value = self.get_selected_household_number()
-        if household_number_value is not None:
-            if household_number_value == "":
-                household_condition = "([HouseholdNumber] IS NULL OR [HouseholdNumber] = '' OR LTRIM(RTRIM([HouseholdNumber])) = '')"
-            else:
-                household_condition = "[HouseholdNumber] = ?"
-
-            if base_conditions:
-                conditions = f"{base_conditions} AND {household_condition}"
-            else:
-                conditions = household_condition
-
-            params = base_params.copy()
-            if household_number_value != "":
-                params.append(household_number_value)
-        else:
-            conditions = base_conditions
-            params = base_params
-
-        return conditions, params
-
-    def get_selected_area_code(self):
-        """ดึงค่า AreaCode ที่เลือก"""
-        if self.area_code_combo.currentIndex() > 0:
-            return self.area_code_combo.itemData(self.area_code_combo.currentIndex())
-        return None
-
-    def get_selected_ea_no(self):
-        """ดึงค่า EA_NO ที่เลือก"""
-        if self.ea_no_combo.currentIndex() > 0:
-            return self.ea_no_combo.itemData(self.ea_no_combo.currentIndex())
-        return None
-
-    def get_selected_vil_code(self):
-        """ดึงค่า VilCode ที่เลือก"""
-        if self.vil_code_combo.currentIndex() > 0:
-            return self.vil_code_combo.itemData(self.vil_code_combo.currentIndex())
-        return None
-
-    def get_selected_vil_name(self):
-        """ดึงค่า VilName ที่เลือก"""
-        if self.vil_name_combo.currentIndex() > 0:
-            return self.vil_name_combo.itemData(self.vil_name_combo.currentIndex())
-        return None
-
-    def get_selected_building_number(self):
-        """ดึงค่า BuildingNumber ที่เลือก"""
-        if self.building_number_combo.currentIndex() > 0:
-            return self.building_number_combo.itemData(
-                self.building_number_combo.currentIndex()
-            )
-        return None
-
-    def get_selected_household_number(self):
-        """ดึงค่า HouseholdNumber ที่เลือก"""
-        if self.household_number_combo.currentIndex() > 0:
-            return self.household_number_combo.itemData(
-                self.household_number_combo.currentIndex()
-            )
-        return None
-
-    def get_selected_household_member_number(self):
-        """ดึงค่า HouseholdMemberNumber ที่เลือก"""
-        if self.household_member_number_combo.currentIndex() > 0:
-            return self.household_member_number_combo.itemData(
-                self.household_member_number_combo.currentIndex()
-            )
-        return None
 
     def load_provinces_with_placeholder(self, reg_code=None):
         """โหลดข้อมูลจังหวัดพร้อม placeholder"""
         try:
             self.province_combo.clear()
             self.province_combo.addItem("-- เลือกจังหวัด --")
-
-            provinces = get_provinces_from_db(reg_code)
-            for province in provinces:
+            for province in get_provinces_from_db(reg_code):
                 self.province_combo.addItem(province["display"])
                 self.province_combo.setItemData(
                     self.province_combo.count() - 1, province["code"]
                 )
-
         except Exception as e:
             print(f"Error loading provinces: {e}")
 
@@ -1618,14 +997,11 @@ class EditDataScreen(QWidget):
         try:
             self.district_combo.clear()
             self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
-
-            districts = get_districts_from_db(prov_code)
-            for district in districts:
+            for district in get_districts_from_db(prov_code):
                 self.district_combo.addItem(district["display"])
                 self.district_combo.setItemData(
                     self.district_combo.count() - 1, district["code"]
                 )
-
         except Exception as e:
             print(f"Error loading districts: {e}")
 
@@ -1634,62 +1010,353 @@ class EditDataScreen(QWidget):
         try:
             self.subdistrict_combo.clear()
             self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")
-
-            subdistricts = get_subdistricts_from_db(dist_code, prov_code)
-            for subdistrict in subdistricts:
+            for subdistrict in get_subdistricts_from_db(dist_code, prov_code):
                 self.subdistrict_combo.addItem(subdistrict["display"])
                 self.subdistrict_combo.setItemData(
                     self.subdistrict_combo.count() - 1, subdistrict["code"]
                 )
-
         except Exception as e:
             print(f"Error loading subdistricts: {e}")
 
+    def on_region_changed(self, index):
+        self.province_combo.blockSignals(True)
+        self.district_combo.blockSignals(True)
+        self.subdistrict_combo.blockSignals(True)
+        self.clear_province_and_below_without_placeholder()
+        if index > 0:
+            reg_code = self.region_combo.itemData(index)
+            if reg_code:
+                self.load_provinces_with_placeholder(reg_code)
+        else:
+            self.province_combo.clear()
+        self.province_combo.blockSignals(False)
+        self.district_combo.blockSignals(False)
+        self.subdistrict_combo.blockSignals(False)
+
+    def on_province_changed(self, index):
+        self.district_combo.blockSignals(True)
+        self.subdistrict_combo.blockSignals(True)
+        self.clear_district_and_below_without_placeholder()
+        if index > 0:
+            prov_code = self.province_combo.itemData(index)
+            if prov_code:
+                self.load_districts_with_placeholder(prov_code)
+        else:
+            self.district_combo.clear()
+        self.district_combo.blockSignals(False)
+        self.subdistrict_combo.blockSignals(False)
+
+    def on_district_changed(self, index):
+        self.subdistrict_combo.blockSignals(True)
+        self.clear_subdistrict_and_below_without_placeholder()
+        if index > 0:
+            dist_code = self.district_combo.itemData(index)
+            prov_code = self.get_selected_province_code()
+            if dist_code:
+                self.load_subdistricts_with_placeholder(dist_code, prov_code)
+        else:
+            self.subdistrict_combo.clear()
+        self.subdistrict_combo.blockSignals(False)
+
+    def get_selected_province_code(self):
+        if self.province_combo.currentIndex() > 0:
+            return self.province_combo.itemData(self.province_combo.currentIndex())
+        return None
+
+    def on_subdistrict_changed(self, index):
+        self.area_code_combo.blockSignals(True)
+        self.clear_area_code_and_below_without_placeholder()
+        if index > 0:
+            self.area_code_combo.clear()
+            self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
+            self.populate_area_code()
+        self.area_code_combo.blockSignals(False)
+
+    def on_area_code_changed(self, index):
+        self.ea_no_combo.blockSignals(True)
+        self.clear_ea_no_and_below_without_placeholder()
+        if index > 0:
+            self.ea_no_combo.clear()
+            self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
+            self.populate_ea_no()
+        self.ea_no_combo.blockSignals(False)
+
+    def on_ea_no_changed(self, index):
+        self.vil_code_combo.blockSignals(True)
+        self.clear_vil_code_and_below_without_placeholder()
+        if index > 0:
+            self.vil_code_combo.clear()
+            self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
+            self.populate_vil_code()
+        self.vil_code_combo.blockSignals(False)
+
+    def on_vil_code_changed(self, index):
+        self.vil_name_combo.blockSignals(True)
+        self.clear_vil_name_and_below_without_placeholder()
+        if index > 0:
+            self.vil_name_combo.clear()
+            self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
+            self.populate_vil_name()
+        self.vil_name_combo.blockSignals(False)
+
+    def on_vil_name_changed(self, index):
+        self.building_number_combo.blockSignals(True)
+        self.clear_building_number_and_below_without_placeholder()
+        if index > 0:
+            self.building_number_combo.clear()
+            self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
+            self.populate_building_number()
+        self.building_number_combo.blockSignals(False)
+
+    def on_building_number_changed(self, index):
+        self.household_number_combo.blockSignals(True)
+        self.clear_household_number_and_below_without_placeholder()
+        if index > 0:
+            self.household_number_combo.clear()
+            self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
+            self.populate_household_number()
+        self.household_number_combo.blockSignals(False)
+
+    def on_household_number_changed(self, index):
+        self.household_member_number_combo.blockSignals(True)
+        self.clear_household_member_number_and_below_without_placeholder()
+        if index > 0:
+            self.household_member_number_combo.clear()
+            self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
+            self.populate_household_member_number()
+        self.household_member_number_combo.blockSignals(False)
+
+    def on_household_member_number_changed(self, index):
+        pass
+
+    def get_selected_codes(self):
+        codes = {}
+        if self.region_combo.currentIndex() > 0:
+            codes["RegCode"] = self.region_combo.itemData(self.region_combo.currentIndex())
+        if self.province_combo.currentIndex() > 0:
+            codes["ProvCode"] = self.province_combo.itemData(self.province_combo.currentIndex())
+        if self.district_combo.currentIndex() > 0:
+            codes["DistCode"] = self.district_combo.itemData(self.district_combo.currentIndex())
+        if self.subdistrict_combo.currentIndex() > 0:
+            codes["SubDistCode"] = self.subdistrict_combo.itemData(self.subdistrict_combo.currentIndex())
+        return codes
+
+    def populate_area_code(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_subdistrict()
+        area_codes = get_distinct_values("AreaCode", where_conditions, tuple(where_params))
+        area_name_mapping = get_area_name_mapping()
+        self.area_code_combo.clear()
+        self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
+        for code in area_codes:
+            display_text = f"{area_name_mapping.get(code, code)}" if code else "-- Blank --"
+            self.area_code_combo.addItem(display_text)
+            self.area_code_combo.setItemData(self.area_code_combo.count() - 1, code)
+
+    def populate_ea_no(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_area_code()
+        ea_nos = get_distinct_values("EA_NO", where_conditions, tuple(where_params))
+        self.ea_no_combo.clear()
+        self.ea_no_combo.addItem("-- เลือกเขตแจงนับ --")
+        for ea_no in ea_nos:
+            self.ea_no_combo.addItem(ea_no if ea_no else "-- Blank --")
+            self.ea_no_combo.setItemData(self.ea_no_combo.count() - 1, ea_no)
+
+    def populate_vil_code(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_ea_no()
+        vil_codes = get_distinct_values("VilCode", where_conditions, tuple(where_params))
+        self.vil_code_combo.clear()
+        self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
+        for vil_code in vil_codes:
+            self.vil_code_combo.addItem(vil_code if vil_code else "-- Blank --")
+            self.vil_code_combo.setItemData(self.vil_code_combo.count() - 1, vil_code)
+
+    def populate_vil_name(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_vil_code()
+        vil_names = get_distinct_values("VilName", where_conditions, tuple(where_params))
+        self.vil_name_combo.clear()
+        self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
+        for vil_name in vil_names:
+            self.vil_name_combo.addItem(vil_name if vil_name else "-- Blank --")
+            self.vil_name_combo.setItemData(self.vil_name_combo.count() - 1, vil_name)
+
+    def populate_building_number(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_vil_name()
+        building_numbers = get_distinct_values("BuildingNumber", where_conditions, tuple(where_params))
+        self.building_number_combo.clear()
+        self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
+        for num in building_numbers:
+            self.building_number_combo.addItem(num if num else "-- Blank --")
+            self.building_number_combo.setItemData(self.building_number_combo.count() - 1, num)
+
+    def populate_household_number(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_building_number()
+        household_numbers = get_distinct_values("HouseholdNumber", where_conditions, tuple(where_params))
+        self.household_number_combo.clear()
+        self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
+        for num in household_numbers:
+            self.household_number_combo.addItem(num if num else "-- Blank --")
+            self.household_number_combo.setItemData(self.household_number_combo.count() - 1, num)
+
+    def populate_household_member_number(self):
+        where_conditions, where_params = self.build_where_conditions_up_to_household_number()
+        member_numbers = get_distinct_values("HouseholdMemberNumber", where_conditions, tuple(where_params))
+        self.household_member_number_combo.clear()
+        self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
+        for num in member_numbers:
+            self.household_member_number_combo.addItem(num if num else "-- Blank --")
+            self.household_member_number_combo.setItemData(self.household_member_number_combo.count() - 1, num)
+
+    def build_where_conditions_up_to_subdistrict(self):
+        conditions, params = [], []
+        codes = self.get_selected_codes()
+        for key, value in codes.items():
+            if value is not None:
+                conditions.append(f"[{key}] = ?")
+                params.append(value)
+        return " AND ".join(conditions) if conditions else None, params
+
+    def build_where_conditions_up_to_area_code(self):
+        base_conditions, base_params = self.build_where_conditions_up_to_subdistrict()
+        area_code_value = self.get_selected_area_code()
+        if area_code_value is not None:
+            area_condition = "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')" if area_code_value == "" else "[AreaCode] = ?"
+            conditions = f"{base_conditions} AND {area_condition}" if base_conditions else area_condition
+            params = base_params.copy()
+            if area_code_value != "":
+                params.append(area_code_value)
+            return conditions, params
+        return base_conditions, base_params
+
+    def build_where_conditions_up_to_ea_no(self):
+        base_conditions, base_params = self.build_where_conditions_up_to_area_code()
+        ea_no_value = self.get_selected_ea_no()
+        if ea_no_value is not None:
+            ea_condition = "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')" if ea_no_value == "" else "[EA_NO] = ?"
+            conditions = f"{base_conditions} AND {ea_condition}" if base_conditions else ea_condition
+            params = base_params.copy()
+            if ea_no_value != "":
+                params.append(ea_no_value)
+            return conditions, params
+        return base_conditions, base_params
+    
+    def build_where_conditions_up_to_vil_code(self):
+        base_conditions, base_params = self.build_where_conditions_up_to_ea_no()
+        vil_code_value = self.get_selected_vil_code()
+        if vil_code_value is not None:
+            vil_condition = "([VilCode] IS NULL OR [VilCode] = '' OR LTRIM(RTRIM([VilCode])) = '')" if vil_code_value == "" else "[VilCode] = ?"
+            conditions = f"{base_conditions} AND {vil_condition}" if base_conditions else vil_condition
+            params = base_params.copy()
+            if vil_code_value != "":
+                params.append(vil_code_value)
+            return conditions, params
+        return base_conditions, base_params
+
+    def build_where_conditions_up_to_vil_name(self):
+        base_conditions, base_params = self.build_where_conditions_up_to_vil_code()
+        vil_name_value = self.get_selected_vil_name()
+        if vil_name_value is not None:
+            vil_name_condition = "([VilName] IS NULL OR [VilName] = '' OR LTRIM(RTRIM([VilName])) = '')" if vil_name_value == "" else "[VilName] = ?"
+            conditions = f"{base_conditions} AND {vil_name_condition}" if base_conditions else vil_name_condition
+            params = base_params.copy()
+            if vil_name_value != "":
+                params.append(vil_name_value)
+            return conditions, params
+        return base_conditions, base_params
+
+    def build_where_conditions_up_to_building_number(self):
+        base_conditions, base_params = self.build_where_conditions_up_to_vil_name()
+        building_number_value = self.get_selected_building_number()
+        if building_number_value is not None:
+            building_condition = "([BuildingNumber] IS NULL OR [BuildingNumber] = '' OR LTRIM(RTRIM([BuildingNumber])) = '')" if building_number_value == "" else "[BuildingNumber] = ?"
+            conditions = f"{base_conditions} AND {building_condition}" if base_conditions else building_condition
+            params = base_params.copy()
+            if building_number_value != "":
+                params.append(building_number_value)
+            return conditions, params
+        return base_conditions, base_params
+
+    def build_where_conditions_up_to_household_number(self):
+        base_conditions, base_params = self.build_where_conditions_up_to_building_number()
+        household_number_value = self.get_selected_household_number()
+        if household_number_value is not None:
+            household_condition = "([HouseholdNumber] IS NULL OR [HouseholdNumber] = '' OR LTRIM(RTRIM([HouseholdNumber])) = '')" if household_number_value == "" else "[HouseholdNumber] = ?"
+            conditions = f"{base_conditions} AND {household_condition}" if base_conditions else household_condition
+            params = base_params.copy()
+            if household_number_value != "":
+                params.append(household_number_value)
+            return conditions, params
+        return base_conditions, base_params
+
+    def get_selected_area_code(self):
+        if self.area_code_combo.currentIndex() > 0:
+            return self.area_code_combo.itemData(self.area_code_combo.currentIndex())
+        return None
+
+    def get_selected_ea_no(self):
+        if self.ea_no_combo.currentIndex() > 0:
+            return self.ea_no_combo.itemData(self.ea_no_combo.currentIndex())
+        return None
+
+    def get_selected_vil_code(self):
+        if self.vil_code_combo.currentIndex() > 0:
+            return self.vil_code_combo.itemData(self.vil_code_combo.currentIndex())
+        return None
+
+    def get_selected_vil_name(self):
+        if self.vil_name_combo.currentIndex() > 0:
+            return self.vil_name_combo.itemData(self.vil_name_combo.currentIndex())
+        return None
+
+    def get_selected_building_number(self):
+        if self.building_number_combo.currentIndex() > 0:
+            return self.building_number_combo.itemData(self.building_number_combo.currentIndex())
+        return None
+
+    def get_selected_household_number(self):
+        if self.household_number_combo.currentIndex() > 0:
+            return self.household_number_combo.itemData(self.household_number_combo.currentIndex())
+        return None
+
+    def get_selected_household_member_number(self):
+        if self.household_member_number_combo.currentIndex() > 0:
+            return self.household_member_number_combo.itemData(self.household_member_number_combo.currentIndex())
+        return None
+        
     def clear_province_and_below_without_placeholder(self):
-        """ล้างจังหวัดและ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.province_combo.clear()
         self.clear_district_and_below_without_placeholder()
 
     def clear_district_and_below_without_placeholder(self):
-        """ล้างอำเภอและ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.district_combo.clear()
         self.clear_subdistrict_and_below_without_placeholder()
 
     def clear_subdistrict_and_below_without_placeholder(self):
-        """ล้างตำบลและ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.subdistrict_combo.clear()
         self.clear_area_code_and_below_without_placeholder()
 
     def clear_area_code_and_below_without_placeholder(self):
-        """ล้าง AreaCode และ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.area_code_combo.clear()
         self.clear_ea_no_and_below_without_placeholder()
 
     def clear_ea_no_and_below_without_placeholder(self):
-        """ล้าง EA_NO และ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.ea_no_combo.clear()
         self.clear_vil_code_and_below_without_placeholder()
 
     def clear_vil_code_and_below_without_placeholder(self):
-        """ล้าง VilCode และ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.vil_code_combo.clear()
         self.clear_vil_name_and_below_without_placeholder()
 
     def clear_vil_name_and_below_without_placeholder(self):
-        """ล้าง VilName และ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.vil_name_combo.clear()
         self.clear_building_number_and_below_without_placeholder()
 
     def clear_building_number_and_below_without_placeholder(self):
-        """ล้าง BuildingNumber และ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.building_number_combo.clear()
         self.clear_household_number_and_below_without_placeholder()
 
     def clear_household_number_and_below_without_placeholder(self):
-        """ล้าง HouseholdNumber และ dropdown ข้างล่างโดยไม่มี placeholder"""
         self.household_number_combo.clear()
         self.clear_household_member_number_and_below_without_placeholder()
 
     def clear_household_member_number_and_below_without_placeholder(self):
-        """ล้าง HouseholdMemberNumber dropdown โดยไม่มี placeholder"""
         self.household_member_number_combo.clear()

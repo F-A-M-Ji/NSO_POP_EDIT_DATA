@@ -1,55 +1,27 @@
 import os
-import datetime
-
 import pandas as pd
 from PyQt5.QtWidgets import (
-    QWidget,
+    QDialog,
+    QLabel,
     QVBoxLayout,
     QHBoxLayout,
-    QLabel,
     QPushButton,
-    QFrame,
-    QComboBox,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QAbstractItemView,
-    QMessageBox,
-    QApplication,
-    QLineEdit,
-    QDialog,
 )
-from PyQt5.QtCore import Qt, QVariant
-from PyQt5.QtGui import QColor, QBrush, QFont, QFontMetrics
-
-from backend.column_mapper import ColumnMapper
-from backend.alldata_operations import (
-    fetch_all_r_alldata_fields,
-    search_r_alldata,
-    save_edited_r_alldata_rows,
-)
-from frontend.widgets.multi_line_header import MultiLineHeaderView
-from frontend.widgets.multi_line_header import FilterableMultiLineHeaderView
-from frontend.utils.error_message import show_error_message, show_info_message
-from frontend.utils.shadow_effect import add_shadow_effect
+from PyQt5.QtGui import QFont
 from frontend.utils.resource_path import resource_path
-from frontend.data_rules.edit_data_rules import (
-    LOGICAL_PK_FIELDS_CONFIG,
-    NON_EDITABLE_FIELDS_CONFIG,
-    FIELD_VALIDATION_RULES_CONFIG,
-    update_rules_from_excel_data,
-)
-from frontend.widgets.filters import (
-    apply_table_filter,
-    clear_table_filter,
-    filter_table_data,
-    display_filtered_results,
-)
+
+# === CHANGE START: เพิ่มตัวแปรสำหรับ cache ข้อมูลที่อ่านจาก Excel ===
+_validation_data_cache = None
+# === CHANGE END ===
 
 
-def load_validation_data_from_excel(
-    screen_instance,
-):
+def load_validation_data_from_excel(screen_instance):
+    # === CHANGE START: ตรวจสอบและใช้ข้อมูลจาก cache ก่อน ถ้ามี ===
+    global _validation_data_cache
+    if _validation_data_cache is not None:
+        return _validation_data_cache
+    # === CHANGE END ===
+
     validation_data = {}
     default_values = {
         "LanguageOther": [f"{i:02d}" for i in range(2, 81)] + ["99"],
@@ -95,6 +67,9 @@ def load_validation_data_from_excel(
         "MovedFromAbroad", "country.xlsx", "Countries_Code_Num-3"
     )
 
+    # === CHANGE START: เก็บข้อมูลที่โหลดเสร็จแล้วลงใน cache ===
+    _validation_data_cache = validation_data
+    # === CHANGE END ===
     return validation_data
 
 
@@ -235,7 +210,13 @@ def validate_edited_data(screen_instance):
     validation_errors = []
     displayed_db_fields_in_table = screen_instance.column_mapper.get_fields_to_show()
 
-    for (row, visual_col), new_value in screen_instance.edited_items.items():
+    # Get unique original row indices that have edits
+    edited_original_row_indices = sorted(
+        list(set(row_col[0] for row_col in screen_instance.edited_items.keys()))
+    )
+    is_filtered = bool(screen_instance.active_filters)
+    
+    for (original_row_idx, visual_col), new_value in screen_instance.edited_items.items():
         if visual_col > 0:
             db_field_index = visual_col - 1
             if db_field_index < len(displayed_db_fields_in_table):
@@ -246,9 +227,24 @@ def validate_edited_data(screen_instance):
                     or field_name in screen_instance.NON_EDITABLE_FIELDS
                 ):
                     continue
+                
+                # Determine the visual row number for the error message
+                visual_row_number = original_row_idx + 1 # Default if not filtered
+                if is_filtered:
+                     # Find the visual row in the filtered cache
+                    try:
+                        original_row_data = screen_instance.original_data_cache[original_row_idx]
+                        pk_values_original = tuple(original_row_data.get(pk) for pk in screen_instance.LOGICAL_PK_FIELDS)
+                        
+                        visual_row_number = next(i for i, row in enumerate(screen_instance.filtered_data_cache) 
+                                             if tuple(row.get(pk) for pk in screen_instance.LOGICAL_PK_FIELDS) == pk_values_original) + 1
+                    except (StopIteration, IndexError):
+                        # Should not happen if logic is correct, but as a fallback:
+                        visual_row_number = original_row_idx + 1 
+
 
                 error = validate_field_value(
-                    screen_instance, field_name, new_value, row + 1
+                    screen_instance, field_name, new_value, visual_row_number
                 )
                 if error:
                     validation_errors.append(error)
@@ -297,103 +293,3 @@ def show_validation_errors(screen_instance, errors):
 
     dialog = CustomMessageBox(screen_instance, "ข้อมูลไม่ถูกต้อง", error_message)
     dialog.exec_()
-
-
-def load_validation_data_from_excel(screen_instance):
-    """โหลดข้อมูลการตรวจสอบจากไฟล์ Excel"""
-    validation_data = {}
-
-    default_values = {
-        "LanguageOther": [f"{i:02d}" for i in range(2, 81)] + ["99"],
-        "NationalityNumeric": [f"{i:03d}" for i in range(4, 910)]
-        + ["000", "910", "920", "930", "940", "990", "997", "998", "999"],
-        "MovedFromAbroad": [f"{i:03d}" for i in range(0, 1000)],
-    }
-
-    try:
-        language_other_path = resource_path("assets/language_other.xlsx")
-        if os.path.exists(language_other_path):
-            language_df = pd.read_excel(language_other_path)
-            if "LanguageOther_Code" in language_df.columns:
-                language_codes = (
-                    language_df["LanguageOther_Code"].dropna().astype(str).tolist()
-                )
-                language_codes = [
-                    code.strip() for code in language_codes if code.strip()
-                ]
-                if language_codes:
-                    validation_data["LanguageOther"] = language_codes
-                else:
-                    validation_data["LanguageOther"] = default_values["LanguageOther"]
-            else:
-                validation_data["LanguageOther"] = default_values["LanguageOther"]
-        else:
-            validation_data["LanguageOther"] = default_values["LanguageOther"]
-    except Exception as e:
-        validation_data["LanguageOther"] = default_values["LanguageOther"]
-
-    try:
-        nationality_path = resource_path("assets/nationality.xlsx")
-        if os.path.exists(nationality_path):
-            nationality_df = pd.read_excel(nationality_path)
-            if "Nationality_Code_Numeric-3" in nationality_df.columns:
-                nationality_codes = (
-                    nationality_df["Nationality_Code_Numeric-3"]
-                    .dropna()
-                    .astype(str)
-                    .tolist()
-                )
-                nationality_codes = [
-                    code.strip() for code in nationality_codes if code.strip()
-                ]
-                additional_codes = [
-                    "000",
-                    "910",
-                    "920",
-                    "930",
-                    "940",
-                    "990",
-                    "997",
-                    "998",
-                    "999",
-                ]
-                nationality_codes.extend(additional_codes)
-                nationality_codes = list(set(nationality_codes))
-                if nationality_codes:
-                    validation_data["NationalityNumeric"] = nationality_codes
-                else:
-                    validation_data["NationalityNumeric"] = default_values[
-                        "NationalityNumeric"
-                    ]
-            else:
-                validation_data["NationalityNumeric"] = default_values[
-                    "NationalityNumeric"
-                ]
-        else:
-            validation_data["NationalityNumeric"] = default_values["NationalityNumeric"]
-    except Exception as e:
-        validation_data["NationalityNumeric"] = default_values["NationalityNumeric"]
-
-    try:
-        country_path = resource_path("assets/country.xlsx")
-        if os.path.exists(country_path):
-            country_df = pd.read_excel(country_path)
-            if "Countries_Code_Num-3" in country_df.columns:
-                country_codes = (
-                    country_df["Countries_Code_Num-3"].dropna().astype(str).tolist()
-                )
-                country_codes = [code.strip() for code in country_codes if code.strip()]
-                if country_codes:
-                    validation_data["MovedFromAbroad"] = country_codes
-                else:
-                    validation_data["MovedFromAbroad"] = default_values[
-                        "MovedFromAbroad"
-                    ]
-            else:
-                validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
-        else:
-            validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
-    except Exception as e:
-        validation_data["MovedFromAbroad"] = default_values["MovedFromAbroad"]
-
-    return validation_data

@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QLineEdit,
 )
 from PyQt5.QtCore import Qt, QVariant
-from PyQt5.QtGui import QColor, QBrush, QFont, QFontMetrics
+from PyQt5.QtGui import QColor, QBrush, QFont, QFontMetrics, QIcon
 
 from backend.column_mapper import ColumnMapper
 from backend.alldata_operations import (
@@ -56,6 +56,8 @@ from frontend.widgets.filters import (
     filter_table_data,
     display_filtered_results,
 )
+# NEW: Import for column selector
+from frontend.widgets.column_selector import ColumnSelectorPopup
 
 
 class EditDataScreen(QWidget):
@@ -69,6 +71,11 @@ class EditDataScreen(QWidget):
 
         self.column_mapper = ColumnMapper.get_instance()
 
+        # NEW: Variables for column visibility
+        self.all_possible_fields = self.column_mapper.get_fields_to_show().copy()
+        self.visible_fields = self.all_possible_fields.copy()
+        self.column_selector_popup = None
+
         self.db_column_names = []
         self.original_data_cache = []
         self.filtered_data_cache = []
@@ -76,18 +83,14 @@ class EditDataScreen(QWidget):
         self.active_filters = {}
 
         self._all_db_fields_r_alldata = []
-
-        # === CHANGE START: เพิ่มตัวแปรสำหรับ Pagination ===
+        
         self.current_page = 1
         self.total_records = 0
         self.total_pages = 0
         self.last_search_conditions = {}
-        # === CHANGE END ===
 
         self.validation_data_from_excel = load_validation_data_from_excel(self)
-
         update_rules_from_excel_data(self)
-
         self.setup_ui()
         self.load_initial_data()
 
@@ -129,7 +132,6 @@ class EditDataScreen(QWidget):
         search_layout.addWidget(search_title)
 
         search_row1_layout = QHBoxLayout()
-
         region_layout = QVBoxLayout()
         region_label = QLabel("ภาค:")
         self.region_combo = QComboBox()
@@ -138,7 +140,6 @@ class EditDataScreen(QWidget):
         region_layout.addWidget(region_label)
         region_layout.addWidget(self.region_combo)
         search_row1_layout.addLayout(region_layout)
-
         province_layout = QVBoxLayout()
         province_label = QLabel("จังหวัด:")
         self.province_combo = QComboBox()
@@ -147,7 +148,6 @@ class EditDataScreen(QWidget):
         province_layout.addWidget(province_label)
         province_layout.addWidget(self.province_combo)
         search_row1_layout.addLayout(province_layout)
-
         district_layout = QVBoxLayout()
         district_label = QLabel("อำเภอ/เขต:")
         self.district_combo = QComboBox()
@@ -156,7 +156,6 @@ class EditDataScreen(QWidget):
         district_layout.addWidget(district_label)
         district_layout.addWidget(self.district_combo)
         search_row1_layout.addLayout(district_layout)
-
         subdistrict_layout = QVBoxLayout()
         subdistrict_label = QLabel("ตำบล/แขวง:")
         self.subdistrict_combo = QComboBox()
@@ -165,7 +164,6 @@ class EditDataScreen(QWidget):
         subdistrict_layout.addWidget(subdistrict_label)
         subdistrict_layout.addWidget(self.subdistrict_combo)
         search_row1_layout.addLayout(subdistrict_layout)
-
         area_code_layout = QVBoxLayout()
         area_code_label = QLabel("เขตการปกครอง:")
         self.area_code_combo = QComboBox()
@@ -174,7 +172,6 @@ class EditDataScreen(QWidget):
         area_code_layout.addWidget(area_code_label)
         area_code_layout.addWidget(self.area_code_combo)
         search_row1_layout.addLayout(area_code_layout)
-
         ea_no_layout = QVBoxLayout()
         ea_no_label = QLabel("เขตแจงนับ:")
         self.ea_no_combo = QComboBox()
@@ -183,11 +180,8 @@ class EditDataScreen(QWidget):
         ea_no_layout.addWidget(ea_no_label)
         ea_no_layout.addWidget(self.ea_no_combo)
         search_row1_layout.addLayout(ea_no_layout)
-
         search_layout.addLayout(search_row1_layout)
-
         search_row2_layout = QHBoxLayout()
-
         vil_code_layout = QVBoxLayout()
         vil_code_label = QLabel("หมู่ที่:")
         self.vil_code_combo = QComboBox()
@@ -196,7 +190,6 @@ class EditDataScreen(QWidget):
         vil_code_layout.addWidget(vil_code_label)
         vil_code_layout.addWidget(self.vil_code_combo)
         search_row2_layout.addLayout(vil_code_layout)
-
         vil_name_layout = QVBoxLayout()
         vil_name_label = QLabel("ชื่อหมู่บ้าน:")
         self.vil_name_combo = QComboBox()
@@ -205,44 +198,33 @@ class EditDataScreen(QWidget):
         vil_name_layout.addWidget(vil_name_label)
         vil_name_layout.addWidget(self.vil_name_combo)
         search_row2_layout.addLayout(vil_name_layout)
-
         building_number_layout = QVBoxLayout()
         building_number_label = QLabel("ลำดับที่สิ่งปลูกสร้าง:")
         self.building_number_combo = QComboBox()
         self.building_number_combo.setObjectName("searchComboBox")
-        self.building_number_combo.currentIndexChanged.connect(
-            self.on_building_number_changed
-        )
+        self.building_number_combo.currentIndexChanged.connect(self.on_building_number_changed)
         building_number_layout.addWidget(building_number_label)
         building_number_layout.addWidget(self.building_number_combo)
         search_row2_layout.addLayout(building_number_layout)
-
         household_number_layout = QVBoxLayout()
         household_number_label = QLabel("ลำดับที่ครัวเรือน:")
         self.household_number_combo = QComboBox()
         self.household_number_combo.setObjectName("searchComboBox")
-        self.household_number_combo.currentIndexChanged.connect(
-            self.on_household_number_changed
-        )
+        self.household_number_combo.currentIndexChanged.connect(self.on_household_number_changed)
         household_number_layout.addWidget(household_number_label)
         household_number_layout.addWidget(self.household_number_combo)
         search_row2_layout.addLayout(household_number_layout)
-
         household_member_number_layout = QVBoxLayout()
         household_member_number_label = QLabel("ลำดับที่สมาชิกในครัวเรือน:")
         self.household_member_number_combo = QComboBox()
         self.household_member_number_combo.setObjectName("searchComboBox")
-        self.household_member_number_combo.currentIndexChanged.connect(
-            self.on_household_member_number_changed
-        )
+        self.household_member_number_combo.currentIndexChanged.connect(self.on_household_member_number_changed)
         household_member_number_layout.addWidget(household_member_number_label)
         household_member_number_layout.addWidget(self.household_member_number_combo)
         search_row2_layout.addLayout(household_member_number_layout)
-
         buttons_layout = QVBoxLayout()
         buttons_label = QLabel("")
         buttons_layout.addWidget(buttons_label)
-
         buttons_container = QHBoxLayout()
         self.search_button = QPushButton("ค้นหา")
         self.search_button.setObjectName("primaryButton")
@@ -251,7 +233,6 @@ class EditDataScreen(QWidget):
         self.search_button.setFixedWidth(120)
         self.search_button.setFixedHeight(20)
         buttons_container.addWidget(self.search_button)
-
         self.clear_button = QPushButton("ล้าง")
         self.clear_button.setObjectName("secondaryButton")
         self.clear_button.setCursor(Qt.PointingHandCursor)
@@ -259,30 +240,23 @@ class EditDataScreen(QWidget):
         self.clear_button.setFixedWidth(120)
         self.clear_button.setFixedHeight(20)
         buttons_container.addWidget(self.clear_button)
-
         buttons_widget = QWidget()
         buttons_widget.setLayout(buttons_container)
         buttons_layout.addWidget(buttons_widget)
-
         search_row2_layout.addLayout(buttons_layout)
-
         min_width = 150
-
         self.region_combo.setMinimumWidth(min_width)
         self.province_combo.setMinimumWidth(min_width)
         self.district_combo.setMinimumWidth(min_width)
         self.subdistrict_combo.setMinimumWidth(min_width)
         self.area_code_combo.setMinimumWidth(min_width)
         self.ea_no_combo.setMinimumWidth(min_width)
-
         self.vil_code_combo.setMinimumWidth(min_width)
         self.vil_name_combo.setMinimumWidth(min_width)
         self.building_number_combo.setMinimumWidth(min_width)
         self.household_number_combo.setMinimumWidth(min_width)
         self.household_member_number_combo.setMinimumWidth(min_width)
-
         content_layout.addWidget(search_section)
-
         search_layout.addLayout(search_row2_layout)
 
         line = QFrame()
@@ -294,11 +268,18 @@ class EditDataScreen(QWidget):
         results_section.setObjectName("resultsSection")
         results_layout = QVBoxLayout(results_section)
         
-        # === CHANGE START: ปรับ Layout ส่วนหัวของตารางผลลัพธ์ ===
+        # MODIFIED: Add column selector button to header layout
         results_header_layout = QHBoxLayout()
         results_title = QLabel("ผลการค้นหา (ดับเบิ้ลคลิกเพื่อแก้ไข)")
         results_title.setObjectName("sectionTitle")
         results_header_layout.addWidget(results_title)
+
+        self.column_selector_button = QPushButton("เลือกคอลัมน์")
+        self.column_selector_button.setObjectName("secondaryButton")
+        self.column_selector_button.setIcon(QIcon(os.path.join("assets", "columns.svg")))
+        self.column_selector_button.clicked.connect(self.show_column_selector)
+        results_header_layout.addWidget(self.column_selector_button)
+
         results_header_layout.addStretch()
         
         self.edit_status_label = QLabel("ไม่มีการแก้ไข")
@@ -306,16 +287,12 @@ class EditDataScreen(QWidget):
         results_header_layout.addWidget(self.edit_status_label)
 
         results_layout.addLayout(results_header_layout)
-        # === CHANGE END ===
 
         self.results_table = QTableWidget()
         self.setup_results_table()
         results_layout.addWidget(self.results_table)
         
-        # === CHANGE START: สร้าง Layout ใหม่สำหรับ Pagination และปุ่ม Reset/Save ===
         bottom_controls_layout = QHBoxLayout()
-        
-        # ส่วนของ Pagination (ซ้าย)
         pagination_layout = QHBoxLayout()
         self.prev_button = QPushButton("< ก่อนหน้า")
         self.prev_button.setCursor(Qt.PointingHandCursor)
@@ -324,15 +301,12 @@ class EditDataScreen(QWidget):
         self.next_button.setCursor(Qt.PointingHandCursor)
         self.next_button.clicked.connect(self.go_to_next_page)
         self.page_info_label = QLabel("")
-        
         pagination_layout.addWidget(self.prev_button)
         pagination_layout.addWidget(self.page_info_label)
         pagination_layout.addWidget(self.next_button)
         pagination_layout.addStretch()
-        
         bottom_controls_layout.addLayout(pagination_layout)
         
-        # ส่วนของปุ่ม Reset และ Save (ขวา)
         self.reset_edits_button = QPushButton("ยกเลิกการแก้ไข")
         self.reset_edits_button.setObjectName("secondaryButton")
         self.reset_edits_button.setCursor(Qt.PointingHandCursor)
@@ -345,16 +319,46 @@ class EditDataScreen(QWidget):
 
         bottom_controls_layout.addWidget(self.reset_edits_button)
         bottom_controls_layout.addWidget(self.save_edits_button)
-
         results_layout.addLayout(bottom_controls_layout)
-        # === CHANGE END ===
         
         content_layout.addWidget(results_section, 1)
         main_layout.addWidget(self.content_frame, 1)
         self.setLayout(main_layout)
 
-        self.update_pagination_controls() # ตั้งค่าเริ่มต้น
+        self.update_pagination_controls()
         self.setup_table_headers_text_and_widths()
+
+    # --- NEW METHODS FOR COLUMN VISIBILITY ---
+
+    def show_column_selector(self):
+        """เปิด Dialog สำหรับเลือกคอลัมน์ที่จะแสดง"""
+        all_mappable_fields = self.column_mapper.get_all_mappable_fields()
+        
+        if self.column_selector_popup:
+            self.column_selector_popup.close()
+
+        self.column_selector_popup = ColumnSelectorPopup(
+            all_columns=all_mappable_fields,
+            visible_columns=self.visible_fields,
+            parent=self
+        )
+        self.column_selector_popup.visibility_changed.connect(self.update_column_visibility)
+        self.column_selector_popup.exec_()
+
+    def update_column_visibility(self, new_visible_fields):
+        """อัปเดตรายการคอลัมน์ที่มองเห็นและซ่อน/แสดงคอลัมน์ในตาราง"""
+        self.visible_fields = new_visible_fields
+        self.apply_column_visibility()
+
+    def apply_column_visibility(self):
+        """ใช้การตั้งค่าการมองเห็นคอลัมน์กับตารางปัจจุบัน"""
+        all_displayable_fields = self.column_mapper.get_fields_to_show()
+        for i, field_name in enumerate(all_displayable_fields):
+            visual_col_index = i + 1  # Offset by 1 for the sequence number column
+            is_hidden = field_name not in self.visible_fields
+            self.results_table.setColumnHidden(visual_col_index, is_hidden)
+
+    # --- END OF NEW METHODS ---
 
     def setup_results_table(self):
         self.results_table.setEditTriggers(QAbstractItemView.DoubleClicked)
@@ -432,7 +436,6 @@ class EditDataScreen(QWidget):
         self.results_table.updateGeometries()
 
     def revert_item_to_original(self, item, original_row_idx):
-        """Helper function to revert a single QTableWidgetItem to its original state."""
         visual_col = item.column()
         displayed_db_fields = self.column_mapper.get_fields_to_show()
 
@@ -446,7 +449,6 @@ class EditDataScreen(QWidget):
             item.setBackground(QBrush())
 
     def reset_all_edits(self):
-        """ยกเลิกการแก้ไขทั้งหมดและคืนค่าเดิม โดยทำงานได้ถูกต้องแม้มี filter"""
         if not self.edited_items:
             return
 
@@ -484,7 +486,6 @@ class EditDataScreen(QWidget):
                         item = self.results_table.item(visual_row_to_update, visual_col)
                         if item:
                             self.revert_item_to_original(item, original_row_idx)
-
             else:
                 for original_row_idx, visual_col in list(self.edited_items.keys()):
                     if original_row_idx < self.results_table.rowCount():
@@ -502,7 +503,6 @@ class EditDataScreen(QWidget):
             self.results_table.setUpdatesEnabled(True)
 
     def update_save_button_state(self):
-        """อัปเดตสถานะปุ่มบันทึก และแสดงข้อมูลการแก้ไขปัจจุบัน"""
         has_edits = bool(self.edited_items)
         edit_count = len(self.edited_items)
 
@@ -521,7 +521,6 @@ class EditDataScreen(QWidget):
             self.edit_status_label.setStyleSheet("")
 
     def handle_item_changed(self, item: QTableWidgetItem):
-        """ตรวจสอบและจัดการการเปลี่ยนแปลงข้อมูลในตารางแบบเรียลไทม์"""
         if not item or not self.original_data_cache:
             return
 
@@ -591,7 +590,6 @@ class EditDataScreen(QWidget):
         self.update_save_button_state()
 
     def search_data(self):
-        """ค้นหาข้อมูลและเริ่มที่หน้า 1"""
         if self.edited_items:
             reply = QMessageBox.question(
                 self,
@@ -617,7 +615,6 @@ class EditDataScreen(QWidget):
             )
             return
 
-        # นับจำนวนทั้งหมดก่อน
         total, err = count_search_r_alldata(self.last_search_conditions)
         if err:
             show_error_message(self, "Search Error", err)
@@ -629,7 +626,6 @@ class EditDataScreen(QWidget):
         self.fetch_page_data()
 
     def fetch_page_data(self):
-        """ดึงข้อมูลสำหรับหน้าปัจจุบัน"""
         if not self.last_search_conditions:
             return
 
@@ -712,21 +708,19 @@ class EditDataScreen(QWidget):
         self.results_table.itemChanged.connect(self.handle_item_changed)
         self.results_table.setUpdatesEnabled(True)
         self.update_pagination_controls()
+        self.apply_column_visibility() # MODIFIED: Apply visibility after displaying results
 
     def go_to_prev_page(self):
-        """ไปยังหน้าก่อนหน้า"""
         if self.current_page > 1:
             self.current_page -= 1
             self.fetch_page_data()
 
     def go_to_next_page(self):
-        """ไปยังหน้าถัดไป"""
         if self.current_page < self.total_pages:
             self.current_page += 1
             self.fetch_page_data()
 
     def update_pagination_controls(self):
-        """อัปเดตสถานะของปุ่มและข้อความ Pagination"""
         if self.total_records > 0:
             self.page_info_label.setText(f"หน้า {self.current_page} / {self.total_pages} (ทั้งหมด {self.total_records} รายการ)")
             self.prev_button.setEnabled(self.current_page > 1)
@@ -737,7 +731,6 @@ class EditDataScreen(QWidget):
             self.next_button.setEnabled(False)
 
     def get_current_search_conditions(self):
-        """รวบรวมเงื่อนไขการค้นหาปัจจุบัน"""
         conditions = {}
         location_codes = self.get_selected_codes()
         conditions.update(location_codes)
@@ -835,9 +828,7 @@ class EditDataScreen(QWidget):
 
         if not list_of_records_to_save:
             show_info_message(
-                self,
-                "ข้อมูลล่าสุด",
-                "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก",
+                self, "ข้อมูลล่าสุด", "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก"
             )
             self.edited_items.clear()
             self.update_save_button_state()
@@ -855,41 +846,30 @@ class EditDataScreen(QWidget):
             show_info_message(
                 self, "สำเร็จ", f"บันทึกข้อมูลที่แก้ไขจำนวน {saved_count} แถวเรียบร้อยแล้ว"
             )
-
-            # === FIX START: Update local cache and re-apply filters instead of re-fetching ===
-            # Create a dictionary of saved records for quick lookup
+            
             saved_records_dict = {}
             for record in list_of_records_to_save:
                 pk_tuple = tuple(record.get(pk) for pk in self.LOGICAL_PK_FIELDS)
                 saved_records_dict[pk_tuple] = record
-
-            # Update the main data cache (original_data_cache)
+            
             for i, original_row in enumerate(self.original_data_cache):
                 pk_tuple_original = tuple(original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS)
                 if pk_tuple_original in saved_records_dict:
-                    # Update this row with the saved data
                     updated_record = saved_records_dict[pk_tuple_original]
                     self.original_data_cache[i].update(updated_record)
-
-            # Clear edits and update button states
+            
             self.edited_items.clear()
             self.update_save_button_state()
-
-            # Re-apply the current table filters to refresh the view
-            # This will use the updated original_data_cache
+            
             filter_table_data(self)
-            # === FIX END ===
         else:
             show_info_message(
-                self,
-                "ข้อมูลล่าสุด",
-                "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม",
+                self, "ข้อมูลล่าสุด", "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม"
             )
             self.edited_items.clear()
             self.update_save_button_state()
 
     def reset_screen_state(self):
-        """รีเซ็ตสถานะหน้าจอ"""
         self.region_combo.setCurrentIndex(0)
         self.setup_initial_dropdown_state()
 
@@ -909,6 +889,10 @@ class EditDataScreen(QWidget):
         self.current_page = 1
         self.total_records = 0
         self.total_pages = 0
+        
+        # Reset column visibility to default
+        self.visible_fields = self.all_possible_fields.copy()
+        self.apply_column_visibility()
 
         if hasattr(self, "header"):
             self.header.clear_all_filters()
@@ -920,7 +904,6 @@ class EditDataScreen(QWidget):
             self.user_fullname_label.setText("User: N/A")
 
     def clear_search(self):
-        """ล้างการค้นหาทั้งหมด"""
         self.reset_screen_state()
 
     def logout(self):
@@ -942,17 +925,14 @@ class EditDataScreen(QWidget):
             self.parent_app.perform_logout()
 
     def load_initial_data(self):
-        """โหลดข้อมูลเริ่มต้น"""
         try:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
             self.load_regions()
             self.setup_initial_dropdown_state()
-
         except Exception as e:
             show_error_message(self, "Error", f"ไม่สามารถโหลดข้อมูลเริ่มต้นได้: {str(e)}")
 
     def setup_initial_dropdown_state(self):
-        """ตั้งค่าสถานะเริ่มต้นของ dropdown ทั้งหมด"""
         self.province_combo.clear()
         self.district_combo.clear()
         self.subdistrict_combo.clear()
@@ -965,7 +945,6 @@ class EditDataScreen(QWidget):
         self.household_member_number_combo.clear()
 
     def load_regions(self):
-        """โหลดข้อมูลภาค"""
         try:
             self.region_combo.blockSignals(True)
             self.region_combo.clear()
@@ -980,7 +959,6 @@ class EditDataScreen(QWidget):
             print(f"Error loading regions: {e}")
 
     def load_provinces_with_placeholder(self, reg_code=None):
-        """โหลดข้อมูลจังหวัดพร้อม placeholder"""
         try:
             self.province_combo.clear()
             self.province_combo.addItem("-- เลือกจังหวัด --")
@@ -993,7 +971,6 @@ class EditDataScreen(QWidget):
             print(f"Error loading provinces: {e}")
 
     def load_districts_with_placeholder(self, prov_code=None):
-        """โหลดข้อมูลอำเภอพร้อม placeholder"""
         try:
             self.district_combo.clear()
             self.district_combo.addItem("-- เลือกอำเภอ/เขต --")
@@ -1006,7 +983,6 @@ class EditDataScreen(QWidget):
             print(f"Error loading districts: {e}")
 
     def load_subdistricts_with_placeholder(self, dist_code=None, prov_code=None):
-        """โหลดข้อมูลตำบลพร้อม placeholder"""
         try:
             self.subdistrict_combo.clear()
             self.subdistrict_combo.addItem("-- เลือกตำบล/แขวง --")

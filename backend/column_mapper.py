@@ -26,15 +26,19 @@ class ColumnMapper:
         try:
             excel_path = resource_path(os.path.join("assets", "column_name.xlsx"))
 
+            # โหลดข้อมูลจากไฟล์ Excel
             column_df = pd.read_excel(excel_path)
 
+            # เก็บรายชื่อฟิลด์ที่ต้องแสดง
             self.fields_to_show = column_df["Field_name"].tolist()
 
+            # สร้าง dictionary สำหรับการแมประหว่าง Field_name และ Column_name
             for _, row in column_df.iterrows():
                 self.column_mappings[row["Field_name"]] = row["Column_name"]
 
             return True
         except Exception as e:
+            # print(f"Failed to load column mappings: {str(e)}")
             return False
 
     def get_column_name(self, field_name):
@@ -45,17 +49,24 @@ class ColumnMapper:
         """ดึงรายชื่อฟิลด์ที่ต้องการแสดง"""
         return self.fields_to_show
 
+    def get_all_mappable_fields(self):
+        """ดึงรายการของ (field_name, display_name) ทั้งหมด"""
+        return [(field, self.get_column_name(field)) for field in self.fields_to_show]
+
     def get_select_fields_sql(self):
         """สร้างส่วน SELECT ของคำสั่ง SQL"""
         return ", ".join(self.fields_to_show)
 
     def format_column_header(self, column_name):
         """แยกข้อความในวงเล็บและนอกวงเล็บ"""
+        # ค้นหาข้อความในวงเล็บ
         paren_match = re.search(r"\(([^)]+)\)", column_name)
 
         if paren_match:
+            # หากพบข้อความในวงเล็บ
             paren_text = f"({paren_match.group(1)})"
             main_text = column_name[: paren_match.start()].strip()
             return main_text, paren_text
         else:
+            # หากไม่พบข้อความในวงเล็บ
             return column_name, ""

@@ -56,6 +56,7 @@ from frontend.widgets.filters import (
     filter_table_data,
     display_filtered_results,
 )
+
 # NEW: Import for column selector
 from frontend.widgets.column_selector import ColumnSelectorPopup
 
@@ -83,7 +84,7 @@ class EditDataScreen(QWidget):
         self.active_filters = {}
 
         self._all_db_fields_r_alldata = []
-        
+
         self.current_page = 1
         self.total_records = 0
         self.total_pages = 0
@@ -122,11 +123,15 @@ class EditDataScreen(QWidget):
         self.content_frame = QFrame()
         self.content_frame.setObjectName("contentFrame")
         content_layout = QVBoxLayout(self.content_frame)
+        content_layout.setSpacing(3)
+        content_layout.setContentsMargins(5, 0, 5, 5)
+        
         add_shadow_effect(self.content_frame)
 
         search_section = QFrame()
         search_section.setObjectName("searchSection")
         search_layout = QVBoxLayout(search_section)
+        search_layout.setContentsMargins(10, 10, 10, 0)
         search_title = QLabel("ค้นหาข้อมูล")
         search_title.setObjectName("sectionTitle")
         search_layout.addWidget(search_title)
@@ -202,7 +207,9 @@ class EditDataScreen(QWidget):
         building_number_label = QLabel("ลำดับที่สิ่งปลูกสร้าง:")
         self.building_number_combo = QComboBox()
         self.building_number_combo.setObjectName("searchComboBox")
-        self.building_number_combo.currentIndexChanged.connect(self.on_building_number_changed)
+        self.building_number_combo.currentIndexChanged.connect(
+            self.on_building_number_changed
+        )
         building_number_layout.addWidget(building_number_label)
         building_number_layout.addWidget(self.building_number_combo)
         search_row2_layout.addLayout(building_number_layout)
@@ -210,7 +217,9 @@ class EditDataScreen(QWidget):
         household_number_label = QLabel("ลำดับที่ครัวเรือน:")
         self.household_number_combo = QComboBox()
         self.household_number_combo.setObjectName("searchComboBox")
-        self.household_number_combo.currentIndexChanged.connect(self.on_household_number_changed)
+        self.household_number_combo.currentIndexChanged.connect(
+            self.on_household_number_changed
+        )
         household_number_layout.addWidget(household_number_label)
         household_number_layout.addWidget(self.household_number_combo)
         search_row2_layout.addLayout(household_number_layout)
@@ -218,7 +227,9 @@ class EditDataScreen(QWidget):
         household_member_number_label = QLabel("ลำดับที่สมาชิกในครัวเรือน:")
         self.household_member_number_combo = QComboBox()
         self.household_member_number_combo.setObjectName("searchComboBox")
-        self.household_member_number_combo.currentIndexChanged.connect(self.on_household_member_number_changed)
+        self.household_member_number_combo.currentIndexChanged.connect(
+            self.on_household_member_number_changed
+        )
         household_member_number_layout.addWidget(household_member_number_label)
         household_member_number_layout.addWidget(self.household_member_number_combo)
         search_row2_layout.addLayout(household_member_number_layout)
@@ -267,7 +278,8 @@ class EditDataScreen(QWidget):
         results_section = QFrame()
         results_section.setObjectName("resultsSection")
         results_layout = QVBoxLayout(results_section)
-        
+        results_layout.setContentsMargins(10, 0, 10, 10)
+
         # MODIFIED: Add column selector button to header layout
         results_header_layout = QHBoxLayout()
         results_title = QLabel("ผลการค้นหา (ดับเบิ้ลคลิกเพื่อแก้ไข)")
@@ -276,12 +288,14 @@ class EditDataScreen(QWidget):
 
         self.column_selector_button = QPushButton("เลือกคอลัมน์")
         self.column_selector_button.setObjectName("secondaryButton")
-        self.column_selector_button.setIcon(QIcon(os.path.join("assets", "columns.svg")))
+        self.column_selector_button.setIcon(
+            QIcon(os.path.join("assets", "columns.svg"))
+        )
         self.column_selector_button.clicked.connect(self.show_column_selector)
         results_header_layout.addWidget(self.column_selector_button)
 
         results_header_layout.addStretch()
-        
+
         self.edit_status_label = QLabel("ไม่มีการแก้ไข")
         self.edit_status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         results_header_layout.addWidget(self.edit_status_label)
@@ -291,7 +305,7 @@ class EditDataScreen(QWidget):
         self.results_table = QTableWidget()
         self.setup_results_table()
         results_layout.addWidget(self.results_table)
-        
+
         bottom_controls_layout = QHBoxLayout()
         pagination_layout = QHBoxLayout()
         self.prev_button = QPushButton("< ก่อนหน้า")
@@ -306,12 +320,12 @@ class EditDataScreen(QWidget):
         pagination_layout.addWidget(self.next_button)
         pagination_layout.addStretch()
         bottom_controls_layout.addLayout(pagination_layout)
-        
+
         self.reset_edits_button = QPushButton("ยกเลิกการแก้ไข")
         self.reset_edits_button.setObjectName("secondaryButton")
         self.reset_edits_button.setCursor(Qt.PointingHandCursor)
         self.reset_edits_button.clicked.connect(self.reset_all_edits)
-        
+
         self.save_edits_button = QPushButton("บันทึกการแก้ไข")
         self.save_edits_button.setObjectName("primaryButton")
         self.save_edits_button.setCursor(Qt.PointingHandCursor)
@@ -320,7 +334,7 @@ class EditDataScreen(QWidget):
         bottom_controls_layout.addWidget(self.reset_edits_button)
         bottom_controls_layout.addWidget(self.save_edits_button)
         results_layout.addLayout(bottom_controls_layout)
-        
+
         content_layout.addWidget(results_section, 1)
         main_layout.addWidget(self.content_frame, 1)
         self.setLayout(main_layout)
@@ -333,16 +347,18 @@ class EditDataScreen(QWidget):
     def show_column_selector(self):
         """เปิด Dialog สำหรับเลือกคอลัมน์ที่จะแสดง"""
         all_mappable_fields = self.column_mapper.get_all_mappable_fields()
-        
+
         if self.column_selector_popup:
             self.column_selector_popup.close()
 
         self.column_selector_popup = ColumnSelectorPopup(
             all_columns=all_mappable_fields,
             visible_columns=self.visible_fields,
-            parent=self
+            parent=self,
         )
-        self.column_selector_popup.visibility_changed.connect(self.update_column_visibility)
+        self.column_selector_popup.visibility_changed.connect(
+            self.update_column_visibility
+        )
         self.column_selector_popup.exec_()
 
     def update_column_visibility(self, new_visible_fields):
@@ -531,22 +547,26 @@ class EditDataScreen(QWidget):
             return
 
         db_field_col_idx = visual_col - 1
-        
+
         is_filtered = bool(self.active_filters)
         original_row_idx = -1
-        
-        current_data_source = self.filtered_data_cache if is_filtered else self.original_data_cache
-        
+
+        current_data_source = (
+            self.filtered_data_cache if is_filtered else self.original_data_cache
+        )
+
         if visual_row < len(current_data_source):
             row_data = current_data_source[visual_row]
             pk_values = tuple(row_data.get(pk) for pk in self.LOGICAL_PK_FIELDS)
-            
+
             for i, original_row in enumerate(self.original_data_cache):
-                pk_values_original = tuple(original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS)
+                pk_values_original = tuple(
+                    original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS
+                )
                 if pk_values_original == pk_values:
                     original_row_idx = i
                     break
-        
+
         if original_row_idx == -1:
             return
 
@@ -572,7 +592,11 @@ class EditDataScreen(QWidget):
         if original_value is None:
             original_value_str = ""
         elif isinstance(original_value, (int, float)):
-            original_value_str = str(int(original_value)) if float(original_value).is_integer() else str(original_value)
+            original_value_str = (
+                str(int(original_value))
+                if float(original_value).is_integer()
+                else str(original_value)
+            )
         else:
             original_value_str = str(original_value).strip()
 
@@ -608,7 +632,7 @@ class EditDataScreen(QWidget):
 
         self.current_page = 1
         self.last_search_conditions = self.get_current_search_conditions()
-        
+
         if all(value is None for value in self.last_search_conditions.values()):
             show_error_message(
                 self, "Search Error", "กรุณาเลือกเงื่อนไขในการค้นหาอย่างน้อยหนึ่งรายการ"
@@ -621,8 +645,12 @@ class EditDataScreen(QWidget):
             self.total_records = 0
         else:
             self.total_records = total
-        
-        self.total_pages = math.ceil(self.total_records / RECORDS_PER_PAGE) if RECORDS_PER_PAGE > 0 else 0
+
+        self.total_pages = (
+            math.ceil(self.total_records / RECORDS_PER_PAGE)
+            if RECORDS_PER_PAGE > 0
+            else 0
+        )
         self.fetch_page_data()
 
     def fetch_page_data(self):
@@ -631,9 +659,12 @@ class EditDataScreen(QWidget):
 
         if not self._all_db_fields_r_alldata:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
-        
+
         results, db_cols, error_msg = search_r_alldata(
-            self.last_search_conditions, self._all_db_fields_r_alldata, self.LOGICAL_PK_FIELDS, self.current_page
+            self.last_search_conditions,
+            self._all_db_fields_r_alldata,
+            self.LOGICAL_PK_FIELDS,
+            self.current_page,
         )
 
         if error_msg:
@@ -641,7 +672,7 @@ class EditDataScreen(QWidget):
             self.results_table.setRowCount(0)
             self.original_data_cache.clear()
             return
-        
+
         self.db_column_names = db_cols
         self.display_results(results)
 
@@ -653,10 +684,10 @@ class EditDataScreen(QWidget):
             self.results_table.itemChanged.disconnect(self.handle_item_changed)
         except TypeError:
             pass
-        
+
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
-        
+
         if hasattr(self, "filtered_data_cache"):
             self.filtered_data_cache.clear()
         if hasattr(self, "active_filters"):
@@ -666,7 +697,7 @@ class EditDataScreen(QWidget):
 
         self.edited_items.clear()
         self.update_save_button_state()
-        
+
         if not self.total_records > 0:
             show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
@@ -674,7 +705,9 @@ class EditDataScreen(QWidget):
             displayed_db_fields_in_table = self.column_mapper.get_fields_to_show()
 
             for row_idx, db_row_tuple in enumerate(results_tuples):
-                sequence_text = str((self.current_page - 1) * RECORDS_PER_PAGE + row_idx + 1)
+                sequence_text = str(
+                    (self.current_page - 1) * RECORDS_PER_PAGE + row_idx + 1
+                )
                 sequence_item = QTableWidgetItem(sequence_text)
                 sequence_item.setTextAlignment(Qt.AlignCenter)
                 flags = sequence_item.flags()
@@ -691,10 +724,16 @@ class EditDataScreen(QWidget):
                     displayed_db_fields_in_table
                 ):
                     visual_col_idx_table = db_field_idx + 1
-                    cell_value = str(current_row_full_data_dict.get(displayed_field_name, ''))
+                    cell_value = str(
+                        current_row_full_data_dict.get(displayed_field_name, "")
+                    )
                     item = QTableWidgetItem(cell_value)
-                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter if displayed_field_name in ["FirstName", "LastName"] else Qt.AlignCenter)
-                    
+                    item.setTextAlignment(
+                        Qt.AlignLeft | Qt.AlignVCenter
+                        if displayed_field_name in ["FirstName", "LastName"]
+                        else Qt.AlignCenter
+                    )
+
                     if (
                         displayed_field_name in self.LOGICAL_PK_FIELDS
                         or displayed_field_name in self.NON_EDITABLE_FIELDS
@@ -708,7 +747,7 @@ class EditDataScreen(QWidget):
         self.results_table.itemChanged.connect(self.handle_item_changed)
         self.results_table.setUpdatesEnabled(True)
         self.update_pagination_controls()
-        self.apply_column_visibility() # MODIFIED: Apply visibility after displaying results
+        self.apply_column_visibility()  # MODIFIED: Apply visibility after displaying results
 
     def go_to_prev_page(self):
         if self.current_page > 1:
@@ -722,7 +761,9 @@ class EditDataScreen(QWidget):
 
     def update_pagination_controls(self):
         if self.total_records > 0:
-            self.page_info_label.setText(f"หน้า {self.current_page} / {self.total_pages} (ทั้งหมด {self.total_records} รายการ)")
+            self.page_info_label.setText(
+                f"หน้า {self.current_page} / {self.total_pages} (ทั้งหมด {self.total_records} รายการ)"
+            )
             self.prev_button.setEnabled(self.current_page > 1)
             self.next_button.setEnabled(self.current_page < self.total_pages)
         else:
@@ -734,7 +775,7 @@ class EditDataScreen(QWidget):
         conditions = {}
         location_codes = self.get_selected_codes()
         conditions.update(location_codes)
-        
+
         additional_conditions = {
             "AreaCode": self.get_selected_area_code(),
             "EA_NO": self.get_selected_ea_no(),
@@ -803,19 +844,21 @@ class EditDataScreen(QWidget):
 
             data_for_this_row_dict = self.original_data_cache[original_row_idx].copy()
             has_actual_edits_for_db = False
-            
+
             for (r_edit, c_visual), new_text_val in self.edited_items.items():
                 if r_edit == original_row_idx:
                     db_field_index = c_visual - 1
                     if 0 <= db_field_index < len(displayed_db_fields_in_table):
-                        db_field_name_for_edit = displayed_db_fields_in_table[db_field_index]
+                        db_field_name_for_edit = displayed_db_fields_in_table[
+                            db_field_index
+                        ]
 
                         if (
                             db_field_name_for_edit in self.LOGICAL_PK_FIELDS
                             or db_field_name_for_edit in self.NON_EDITABLE_FIELDS
                         ):
                             continue
-                        
+
                         data_for_this_row_dict[db_field_name_for_edit] = (
                             new_text_val if new_text_val else None
                         )
@@ -827,13 +870,11 @@ class EditDataScreen(QWidget):
                 list_of_records_to_save.append(data_for_this_row_dict)
 
         if not list_of_records_to_save:
-            show_info_message(
-                self, "ข้อมูลล่าสุด", "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก"
-            )
+            show_info_message(self, "ข้อมูลล่าสุด", "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก")
             self.edited_items.clear()
             self.update_save_button_state()
             return
-            
+
         saved_count, error_msg = save_edited_r_alldata_rows(
             list_of_records_to_save, self._all_db_fields_r_alldata
         )
@@ -846,26 +887,26 @@ class EditDataScreen(QWidget):
             show_info_message(
                 self, "สำเร็จ", f"บันทึกข้อมูลที่แก้ไขจำนวน {saved_count} แถวเรียบร้อยแล้ว"
             )
-            
+
             saved_records_dict = {}
             for record in list_of_records_to_save:
                 pk_tuple = tuple(record.get(pk) for pk in self.LOGICAL_PK_FIELDS)
                 saved_records_dict[pk_tuple] = record
-            
+
             for i, original_row in enumerate(self.original_data_cache):
-                pk_tuple_original = tuple(original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS)
+                pk_tuple_original = tuple(
+                    original_row.get(pk) for pk in self.LOGICAL_PK_FIELDS
+                )
                 if pk_tuple_original in saved_records_dict:
                     updated_record = saved_records_dict[pk_tuple_original]
                     self.original_data_cache[i].update(updated_record)
-            
+
             self.edited_items.clear()
             self.update_save_button_state()
-            
+
             filter_table_data(self)
         else:
-            show_info_message(
-                self, "ข้อมูลล่าสุด", "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม"
-            )
+            show_info_message(self, "ข้อมูลล่าสุด", "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม")
             self.edited_items.clear()
             self.update_save_button_state()
 
@@ -889,14 +930,14 @@ class EditDataScreen(QWidget):
         self.current_page = 1
         self.total_records = 0
         self.total_pages = 0
-        
+
         # Reset column visibility to default
         self.visible_fields = self.all_possible_fields.copy()
         self.apply_column_visibility()
 
         if hasattr(self, "header"):
             self.header.clear_all_filters()
-            
+
         self.update_pagination_controls()
         self.update_save_button_state()
 
@@ -1108,23 +1149,35 @@ class EditDataScreen(QWidget):
     def get_selected_codes(self):
         codes = {}
         if self.region_combo.currentIndex() > 0:
-            codes["RegCode"] = self.region_combo.itemData(self.region_combo.currentIndex())
+            codes["RegCode"] = self.region_combo.itemData(
+                self.region_combo.currentIndex()
+            )
         if self.province_combo.currentIndex() > 0:
-            codes["ProvCode"] = self.province_combo.itemData(self.province_combo.currentIndex())
+            codes["ProvCode"] = self.province_combo.itemData(
+                self.province_combo.currentIndex()
+            )
         if self.district_combo.currentIndex() > 0:
-            codes["DistCode"] = self.district_combo.itemData(self.district_combo.currentIndex())
+            codes["DistCode"] = self.district_combo.itemData(
+                self.district_combo.currentIndex()
+            )
         if self.subdistrict_combo.currentIndex() > 0:
-            codes["SubDistCode"] = self.subdistrict_combo.itemData(self.subdistrict_combo.currentIndex())
+            codes["SubDistCode"] = self.subdistrict_combo.itemData(
+                self.subdistrict_combo.currentIndex()
+            )
         return codes
 
     def populate_area_code(self):
         where_conditions, where_params = self.build_where_conditions_up_to_subdistrict()
-        area_codes = get_distinct_values("AreaCode", where_conditions, tuple(where_params))
+        area_codes = get_distinct_values(
+            "AreaCode", where_conditions, tuple(where_params)
+        )
         area_name_mapping = get_area_name_mapping()
         self.area_code_combo.clear()
         self.area_code_combo.addItem("-- เลือกเขตการปกครอง --")
         for code in area_codes:
-            display_text = f"{area_name_mapping.get(code, code)}" if code else "-- Blank --"
+            display_text = (
+                f"{area_name_mapping.get(code, code)}" if code else "-- Blank --"
+            )
             self.area_code_combo.addItem(display_text)
             self.area_code_combo.setItemData(self.area_code_combo.count() - 1, code)
 
@@ -1139,7 +1192,9 @@ class EditDataScreen(QWidget):
 
     def populate_vil_code(self):
         where_conditions, where_params = self.build_where_conditions_up_to_ea_no()
-        vil_codes = get_distinct_values("VilCode", where_conditions, tuple(where_params))
+        vil_codes = get_distinct_values(
+            "VilCode", where_conditions, tuple(where_params)
+        )
         self.vil_code_combo.clear()
         self.vil_code_combo.addItem("-- เลือกหมู่ที่ --")
         for vil_code in vil_codes:
@@ -1148,7 +1203,9 @@ class EditDataScreen(QWidget):
 
     def populate_vil_name(self):
         where_conditions, where_params = self.build_where_conditions_up_to_vil_code()
-        vil_names = get_distinct_values("VilName", where_conditions, tuple(where_params))
+        vil_names = get_distinct_values(
+            "VilName", where_conditions, tuple(where_params)
+        )
         self.vil_name_combo.clear()
         self.vil_name_combo.addItem("-- เลือกชื่อหมู่บ้าน --")
         for vil_name in vil_names:
@@ -1157,30 +1214,46 @@ class EditDataScreen(QWidget):
 
     def populate_building_number(self):
         where_conditions, where_params = self.build_where_conditions_up_to_vil_name()
-        building_numbers = get_distinct_values("BuildingNumber", where_conditions, tuple(where_params))
+        building_numbers = get_distinct_values(
+            "BuildingNumber", where_conditions, tuple(where_params)
+        )
         self.building_number_combo.clear()
         self.building_number_combo.addItem("-- เลือกลำดับที่สิ่งปลูกสร้าง --")
         for num in building_numbers:
             self.building_number_combo.addItem(num if num else "-- Blank --")
-            self.building_number_combo.setItemData(self.building_number_combo.count() - 1, num)
+            self.building_number_combo.setItemData(
+                self.building_number_combo.count() - 1, num
+            )
 
     def populate_household_number(self):
-        where_conditions, where_params = self.build_where_conditions_up_to_building_number()
-        household_numbers = get_distinct_values("HouseholdNumber", where_conditions, tuple(where_params))
+        where_conditions, where_params = (
+            self.build_where_conditions_up_to_building_number()
+        )
+        household_numbers = get_distinct_values(
+            "HouseholdNumber", where_conditions, tuple(where_params)
+        )
         self.household_number_combo.clear()
         self.household_number_combo.addItem("-- เลือกลำดับที่ครัวเรือน --")
         for num in household_numbers:
             self.household_number_combo.addItem(num if num else "-- Blank --")
-            self.household_number_combo.setItemData(self.household_number_combo.count() - 1, num)
+            self.household_number_combo.setItemData(
+                self.household_number_combo.count() - 1, num
+            )
 
     def populate_household_member_number(self):
-        where_conditions, where_params = self.build_where_conditions_up_to_household_number()
-        member_numbers = get_distinct_values("HouseholdMemberNumber", where_conditions, tuple(where_params))
+        where_conditions, where_params = (
+            self.build_where_conditions_up_to_household_number()
+        )
+        member_numbers = get_distinct_values(
+            "HouseholdMemberNumber", where_conditions, tuple(where_params)
+        )
         self.household_member_number_combo.clear()
         self.household_member_number_combo.addItem("-- เลือกลำดับที่สมาชิกในครัวเรือน --")
         for num in member_numbers:
             self.household_member_number_combo.addItem(num if num else "-- Blank --")
-            self.household_member_number_combo.setItemData(self.household_member_number_combo.count() - 1, num)
+            self.household_member_number_combo.setItemData(
+                self.household_member_number_combo.count() - 1, num
+            )
 
     def build_where_conditions_up_to_subdistrict(self):
         conditions, params = [], []
@@ -1195,8 +1268,16 @@ class EditDataScreen(QWidget):
         base_conditions, base_params = self.build_where_conditions_up_to_subdistrict()
         area_code_value = self.get_selected_area_code()
         if area_code_value is not None:
-            area_condition = "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')" if area_code_value == "" else "[AreaCode] = ?"
-            conditions = f"{base_conditions} AND {area_condition}" if base_conditions else area_condition
+            area_condition = (
+                "([AreaCode] IS NULL OR [AreaCode] = '' OR LTRIM(RTRIM([AreaCode])) = '')"
+                if area_code_value == ""
+                else "[AreaCode] = ?"
+            )
+            conditions = (
+                f"{base_conditions} AND {area_condition}"
+                if base_conditions
+                else area_condition
+            )
             params = base_params.copy()
             if area_code_value != "":
                 params.append(area_code_value)
@@ -1207,20 +1288,36 @@ class EditDataScreen(QWidget):
         base_conditions, base_params = self.build_where_conditions_up_to_area_code()
         ea_no_value = self.get_selected_ea_no()
         if ea_no_value is not None:
-            ea_condition = "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')" if ea_no_value == "" else "[EA_NO] = ?"
-            conditions = f"{base_conditions} AND {ea_condition}" if base_conditions else ea_condition
+            ea_condition = (
+                "([EA_NO] IS NULL OR [EA_NO] = '' OR LTRIM(RTRIM([EA_NO])) = '')"
+                if ea_no_value == ""
+                else "[EA_NO] = ?"
+            )
+            conditions = (
+                f"{base_conditions} AND {ea_condition}"
+                if base_conditions
+                else ea_condition
+            )
             params = base_params.copy()
             if ea_no_value != "":
                 params.append(ea_no_value)
             return conditions, params
         return base_conditions, base_params
-    
+
     def build_where_conditions_up_to_vil_code(self):
         base_conditions, base_params = self.build_where_conditions_up_to_ea_no()
         vil_code_value = self.get_selected_vil_code()
         if vil_code_value is not None:
-            vil_condition = "([VilCode] IS NULL OR [VilCode] = '' OR LTRIM(RTRIM([VilCode])) = '')" if vil_code_value == "" else "[VilCode] = ?"
-            conditions = f"{base_conditions} AND {vil_condition}" if base_conditions else vil_condition
+            vil_condition = (
+                "([VilCode] IS NULL OR [VilCode] = '' OR LTRIM(RTRIM([VilCode])) = '')"
+                if vil_code_value == ""
+                else "[VilCode] = ?"
+            )
+            conditions = (
+                f"{base_conditions} AND {vil_condition}"
+                if base_conditions
+                else vil_condition
+            )
             params = base_params.copy()
             if vil_code_value != "":
                 params.append(vil_code_value)
@@ -1231,8 +1328,16 @@ class EditDataScreen(QWidget):
         base_conditions, base_params = self.build_where_conditions_up_to_vil_code()
         vil_name_value = self.get_selected_vil_name()
         if vil_name_value is not None:
-            vil_name_condition = "([VilName] IS NULL OR [VilName] = '' OR LTRIM(RTRIM([VilName])) = '')" if vil_name_value == "" else "[VilName] = ?"
-            conditions = f"{base_conditions} AND {vil_name_condition}" if base_conditions else vil_name_condition
+            vil_name_condition = (
+                "([VilName] IS NULL OR [VilName] = '' OR LTRIM(RTRIM([VilName])) = '')"
+                if vil_name_value == ""
+                else "[VilName] = ?"
+            )
+            conditions = (
+                f"{base_conditions} AND {vil_name_condition}"
+                if base_conditions
+                else vil_name_condition
+            )
             params = base_params.copy()
             if vil_name_value != "":
                 params.append(vil_name_value)
@@ -1243,8 +1348,16 @@ class EditDataScreen(QWidget):
         base_conditions, base_params = self.build_where_conditions_up_to_vil_name()
         building_number_value = self.get_selected_building_number()
         if building_number_value is not None:
-            building_condition = "([BuildingNumber] IS NULL OR [BuildingNumber] = '' OR LTRIM(RTRIM([BuildingNumber])) = '')" if building_number_value == "" else "[BuildingNumber] = ?"
-            conditions = f"{base_conditions} AND {building_condition}" if base_conditions else building_condition
+            building_condition = (
+                "([BuildingNumber] IS NULL OR [BuildingNumber] = '' OR LTRIM(RTRIM([BuildingNumber])) = '')"
+                if building_number_value == ""
+                else "[BuildingNumber] = ?"
+            )
+            conditions = (
+                f"{base_conditions} AND {building_condition}"
+                if base_conditions
+                else building_condition
+            )
             params = base_params.copy()
             if building_number_value != "":
                 params.append(building_number_value)
@@ -1252,11 +1365,21 @@ class EditDataScreen(QWidget):
         return base_conditions, base_params
 
     def build_where_conditions_up_to_household_number(self):
-        base_conditions, base_params = self.build_where_conditions_up_to_building_number()
+        base_conditions, base_params = (
+            self.build_where_conditions_up_to_building_number()
+        )
         household_number_value = self.get_selected_household_number()
         if household_number_value is not None:
-            household_condition = "([HouseholdNumber] IS NULL OR [HouseholdNumber] = '' OR LTRIM(RTRIM([HouseholdNumber])) = '')" if household_number_value == "" else "[HouseholdNumber] = ?"
-            conditions = f"{base_conditions} AND {household_condition}" if base_conditions else household_condition
+            household_condition = (
+                "([HouseholdNumber] IS NULL OR [HouseholdNumber] = '' OR LTRIM(RTRIM([HouseholdNumber])) = '')"
+                if household_number_value == ""
+                else "[HouseholdNumber] = ?"
+            )
+            conditions = (
+                f"{base_conditions} AND {household_condition}"
+                if base_conditions
+                else household_condition
+            )
             params = base_params.copy()
             if household_number_value != "":
                 params.append(household_number_value)
@@ -1285,19 +1408,25 @@ class EditDataScreen(QWidget):
 
     def get_selected_building_number(self):
         if self.building_number_combo.currentIndex() > 0:
-            return self.building_number_combo.itemData(self.building_number_combo.currentIndex())
+            return self.building_number_combo.itemData(
+                self.building_number_combo.currentIndex()
+            )
         return None
 
     def get_selected_household_number(self):
         if self.household_number_combo.currentIndex() > 0:
-            return self.household_number_combo.itemData(self.household_number_combo.currentIndex())
+            return self.household_number_combo.itemData(
+                self.household_number_combo.currentIndex()
+            )
         return None
 
     def get_selected_household_member_number(self):
         if self.household_member_number_combo.currentIndex() > 0:
-            return self.household_member_number_combo.itemData(self.household_member_number_combo.currentIndex())
+            return self.household_member_number_combo.itemData(
+                self.household_member_number_combo.currentIndex()
+            )
         return None
-        
+
     def clear_province_and_below_without_placeholder(self):
         self.province_combo.clear()
         self.clear_district_and_below_without_placeholder()

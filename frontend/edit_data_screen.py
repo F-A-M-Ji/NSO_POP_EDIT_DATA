@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QApplication,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QColor, QBrush, QFont, QFontMetrics, QIcon
 
 from backend.column_mapper import ColumnMapper
@@ -80,6 +80,7 @@ class EditDataScreen(QWidget):
         self.last_search_conditions = {}
         self.validation_data_from_excel = load_validation_data_from_excel(self)
         update_rules_from_excel_data(self)
+        self.search_section_is_visible = True  # State for search visibility
         self.setup_ui()
         self.load_initial_data()
 
@@ -89,7 +90,7 @@ class EditDataScreen(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setContentsMargins(5, 0, 5, 5)
 
         header_layout = QHBoxLayout()
         header_label = QLabel("ระบบแก้ไขข้อมูล สปค. 68")
@@ -111,17 +112,38 @@ class EditDataScreen(QWidget):
         self.content_frame = QFrame()
         self.content_frame.setObjectName("contentFrame")
         content_layout = QVBoxLayout(self.content_frame)
-        content_layout.setSpacing(3)
+        content_layout.setSpacing(1)
         content_layout.setContentsMargins(5, 0, 5, 5)
         add_shadow_effect(self.content_frame)
 
-        search_section = QFrame()
-        search_section.setObjectName("searchSection")
-        search_layout = QVBoxLayout(search_section)
-        search_layout.setContentsMargins(10, 10, 10, 0)
+        # --- UI MODIFICATION: Collapsible Search Section ---
+        self.search_section_frame = QFrame()
+        self.search_section_frame.setObjectName("searchSection")
+        search_layout = QVBoxLayout(self.search_section_frame)
+        search_layout.setContentsMargins(10, 5, 10, 0)
+        search_layout.setSpacing(5)
+        
+        # Header with Title and Toggle Button
+        search_header_layout = QHBoxLayout()
+        search_header_layout.setContentsMargins(0, 0, 0, 0)
         search_title = QLabel("ค้นหาข้อมูล")
         search_title.setObjectName("sectionTitle")
-        search_layout.addWidget(search_title)
+        search_header_layout.addWidget(search_title)
+        search_header_layout.addStretch()
+
+        self.toggle_search_button = QPushButton("▲ ซ่อนตัวกรอง")
+        self.toggle_search_button.setObjectName("toggleSearchButton")
+        self.toggle_search_button.setCursor(Qt.PointingHandCursor)
+        self.toggle_search_button.clicked.connect(self.toggle_search_visibility)
+        search_header_layout.addWidget(self.toggle_search_button)
+
+        search_layout.addLayout(search_header_layout)
+
+        # Collapsible container for search inputs
+        self.search_inputs_container = QWidget()
+        search_inputs_layout = QVBoxLayout(self.search_inputs_container)
+        search_inputs_layout.setContentsMargins(0, 0, 0, 0)
+        search_inputs_layout.setSpacing(5)
 
         search_row1_layout = QHBoxLayout()
         region_layout = QVBoxLayout()
@@ -172,7 +194,8 @@ class EditDataScreen(QWidget):
         ea_no_layout.addWidget(ea_no_label)
         ea_no_layout.addWidget(self.ea_no_combo)
         search_row1_layout.addLayout(ea_no_layout)
-        search_layout.addLayout(search_row1_layout)
+        search_inputs_layout.addLayout(search_row1_layout)
+
         search_row2_layout = QHBoxLayout()
         vil_code_layout = QVBoxLayout()
         vil_code_label = QLabel("หมู่ที่:")
@@ -236,6 +259,10 @@ class EditDataScreen(QWidget):
         buttons_widget.setLayout(buttons_container)
         buttons_layout.addWidget(buttons_widget)
         search_row2_layout.addLayout(buttons_layout)
+        search_inputs_layout.addLayout(search_row2_layout)
+
+        search_layout.addWidget(self.search_inputs_container)
+
         min_width = 150
         self.region_combo.setMinimumWidth(min_width)
         self.province_combo.setMinimumWidth(min_width)
@@ -248,8 +275,9 @@ class EditDataScreen(QWidget):
         self.building_number_combo.setMinimumWidth(min_width)
         self.household_number_combo.setMinimumWidth(min_width)
         self.household_member_number_combo.setMinimumWidth(min_width)
-        content_layout.addWidget(search_section)
-        search_layout.addLayout(search_row2_layout)
+        
+        content_layout.addWidget(self.search_section_frame)
+        # --- End of UI MODIFICATION ---
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
@@ -259,7 +287,7 @@ class EditDataScreen(QWidget):
         results_section = QFrame()
         results_section.setObjectName("resultsSection")
         results_layout = QVBoxLayout(results_section)
-        results_layout.setContentsMargins(10, 0, 10, 10)
+        results_layout.setContentsMargins(10, 0, 10, 5)
 
         results_header_layout = QHBoxLayout()
         results_title = QLabel("ผลการค้นหา (ดับเบิ้ลคลิกเพื่อแก้ไข)")
@@ -320,6 +348,32 @@ class EditDataScreen(QWidget):
         self.update_pagination_controls()
         self.update_save_button_state()
         self.setup_table_headers_text_and_widths()
+
+        # Setup animation for the collapsible search section
+        self.animation = QPropertyAnimation(self.search_inputs_container, b"maximumHeight")
+        self.animation.setDuration(250)
+        self.animation.setStartValue(0)
+        self.animation.setEndValue(self.search_inputs_container.sizeHint().height())
+        self.animation.setEasingCurve(QEasingCurve.InOutQuad)
+
+    def toggle_search_visibility(self):
+        """
+        Toggles the visibility of the search input fields with a sliding animation.
+        """
+        if self.animation.state() == QPropertyAnimation.Running:
+            return  # Ignore clicks during animation
+
+        if self.search_section_is_visible:
+            # Collapse
+            self.animation.setDirection(QPropertyAnimation.Backward)
+            self.toggle_search_button.setText("▼ แสดงตัวกรอง")
+        else:
+            # Expand
+            self.animation.setDirection(QPropertyAnimation.Forward)
+            self.toggle_search_button.setText("▲ ซ่อนตัวกรอง")
+        
+        self.animation.start()
+        self.search_section_is_visible = not self.search_section_is_visible
 
     def show_column_selector(self):
         all_mappable_fields = self.column_mapper.get_all_mappable_fields()
@@ -717,6 +771,23 @@ class EditDataScreen(QWidget):
         if hasattr(self, "user_fullname_label"):
             self.user_fullname_label.setText("User: N/A")
 
+    def reset_search_visibility_state(self):
+        """
+        รีเซ็ตส่วนการค้นหาให้กลับเป็นสถานะเริ่มต้น (แสดงผล)
+        """
+        if hasattr(self, 'animation') and self.animation.state() == QPropertyAnimation.Running:
+            self.animation.stop()
+
+        self.search_section_is_visible = True
+        
+        if hasattr(self, 'toggle_search_button'):
+            self.toggle_search_button.setText("▲ ซ่อนตัวกรอง")
+            
+        if hasattr(self, 'search_inputs_container'):
+            # ตั้งค่าความสูงสูงสุดเป็นค่าที่เหมาะสมเพื่อให้แสดงผลเต็มที่ทันที
+            self.search_inputs_container.setMaximumHeight(self.search_inputs_container.sizeHint().height())
+            self.search_inputs_container.show()
+
     def reset_screen_state(self):
         """รีเซ็ตสถานะหน้าจอ (ฟอร์มค้นหาและตารางผลลัพธ์)"""
         self.region_combo.setCurrentIndex(0)
@@ -742,6 +813,10 @@ class EditDataScreen(QWidget):
             self.header.clear_all_filters()
         self.update_pagination_controls()
         self.update_save_button_state()
+        
+        # --- ADDED THIS LINE TO RESET FILTER VISIBILITY ---
+        self.reset_search_visibility_state()
+        
         # หมายเหตุ: บรรทัดที่ตั้งค่า user_fullname_label ถูกย้ายไปที่ clear_user_info()
 
     def clear_search(self):

@@ -51,7 +51,6 @@ from frontend.data_rules.edit_data_validation import (
 from frontend.widgets.filters import (
     apply_table_filter,
     clear_table_filter,
-    filter_table_data,
 )
 from frontend.widgets.column_selector import ColumnSelectorPopup
 
@@ -70,7 +69,8 @@ class EditDataScreen(QWidget):
         self.column_selector_popup = None
         self.db_column_names = []
         self.original_data_cache = []
-        self.filtered_data_cache = []
+        # filtered_data_cache is no longer the primary source for filtered views
+        self.filtered_data_cache = [] 
         self.edited_items = {}
         self.active_filters = {}
         self._all_db_fields_r_alldata = []
@@ -116,14 +116,12 @@ class EditDataScreen(QWidget):
         content_layout.setContentsMargins(5, 0, 5, 5)
         add_shadow_effect(self.content_frame)
 
-        # --- UI MODIFICATION: Collapsible Search Section ---
         self.search_section_frame = QFrame()
         self.search_section_frame.setObjectName("searchSection")
         search_layout = QVBoxLayout(self.search_section_frame)
         search_layout.setContentsMargins(10, 5, 10, 0)
         search_layout.setSpacing(5)
         
-        # Header with Title and Toggle Button
         search_header_layout = QHBoxLayout()
         search_header_layout.setContentsMargins(0, 0, 0, 0)
         search_title = QLabel("ค้นหาข้อมูล")
@@ -139,7 +137,6 @@ class EditDataScreen(QWidget):
 
         search_layout.addLayout(search_header_layout)
 
-        # Collapsible container for search inputs
         self.search_inputs_container = QWidget()
         search_inputs_layout = QVBoxLayout(self.search_inputs_container)
         search_inputs_layout.setContentsMargins(0, 0, 0, 0)
@@ -277,7 +274,6 @@ class EditDataScreen(QWidget):
         self.household_member_number_combo.setMinimumWidth(min_width)
         
         content_layout.addWidget(self.search_section_frame)
-        # --- End of UI MODIFICATION ---
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
@@ -349,7 +345,6 @@ class EditDataScreen(QWidget):
         self.update_save_button_state()
         self.setup_table_headers_text_and_widths()
 
-        # Setup animation for the collapsible search section
         self.animation = QPropertyAnimation(self.search_inputs_container, b"maximumHeight")
         self.animation.setDuration(250)
         self.animation.setStartValue(0)
@@ -471,7 +466,7 @@ class EditDataScreen(QWidget):
             self.edited_items.clear()
             self.update_save_button_state()
             # Refresh the current view to remove highlights
-            filter_table_data(self)
+            self.execute_search_and_update_view()
 
     def update_save_button_state(self):
         has_edits = bool(self.edited_items)
@@ -494,8 +489,8 @@ class EditDataScreen(QWidget):
         visual_row, visual_col = item.row(), item.column()
         if visual_col == 0: return
 
-        is_filtered = bool(self.active_filters)
-        current_data_source = self.filtered_data_cache if is_filtered else self.original_data_cache
+        # The current data source is always original_data_cache
+        current_data_source = self.original_data_cache
         if visual_row >= len(current_data_source): return
 
         row_data_for_pk = current_data_source[visual_row]
@@ -539,6 +534,60 @@ class EditDataScreen(QWidget):
             item.setBackground(QBrush())
         self.update_save_button_state()
 
+    def execute_search_and_update_view(self):
+        """
+        Combines top search and header filters, re-queries the database,
+        and updates the entire view including pagination.
+        """
+        # 1. Combine search conditions
+        combined_conditions = self.last_search_conditions.copy()
+        displayed_fields = self.column_mapper.get_fields_to_show()
+
+        for col_idx, filter_info in self.active_filters.items():
+            if col_idx > 0 and (col_idx - 1) < len(displayed_fields):
+                field_name = displayed_fields[col_idx - 1]
+                combined_conditions[f"filter_{field_name}"] = filter_info
+
+        # 2. Count total records with combined filters
+        total, err = count_search_r_alldata(combined_conditions)
+        if err:
+            show_error_message(self, "Search Error", err)
+            self.total_records = 0
+        else:
+            self.total_records = total
+
+        self.total_pages = math.ceil(self.total_records / RECORDS_PER_PAGE) if RECORDS_PER_PAGE > 0 else 0
+        
+        # Adjust current page if it's out of bounds after filtering
+        if self.current_page > self.total_pages and self.total_pages > 0:
+            self.current_page = self.total_pages
+        if self.total_pages == 0 and self.total_records > 0:
+             self.current_page = 1
+        elif self.total_pages == 0:
+            self.current_page = 1 # Reset to 1 if no results
+
+
+        # 3. Fetch data for the adjusted current page
+        if not self._all_db_fields_r_alldata:
+            self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
+            
+        results, db_cols, error_msg = search_r_alldata(
+            combined_conditions,
+            self._all_db_fields_r_alldata,
+            self.LOGICAL_PK_FIELDS, 
+            self.current_page
+        )
+        if error_msg:
+            show_error_message(self, "Search Error", error_msg)
+            self.results_table.setRowCount(0)
+            self.original_data_cache.clear()
+        else:
+            self.db_column_names = db_cols
+            self.display_results(results)
+        
+        # This was previously in display_results, but it makes more sense here
+        self.update_pagination_controls()
+
     def search_data(self):
         if self.edited_items:
             reply = QMessageBox.question(
@@ -556,37 +605,19 @@ class EditDataScreen(QWidget):
                 self.edited_items.clear()
                 self.update_save_button_state()
 
+        # This is the main search, so clear header filters
+        self.active_filters.clear()
+        if hasattr(self, "header"):
+            self.header.clear_all_filters()
+
         self.current_page = 1
         self.last_search_conditions = self.get_current_search_conditions()
         active_conditions = {k: v for k, v in self.last_search_conditions.items() if v is not None}
         if not active_conditions:
             show_error_message(self, "Search Error", "กรุณาเลือกเงื่อนไขในการค้นหาอย่างน้อยหนึ่งรายการ")
             return
-
-        total, err = count_search_r_alldata(self.last_search_conditions)
-        if err:
-            show_error_message(self, "Search Error", err)
-            self.total_records = 0
-        else:
-            self.total_records = total
-        self.total_pages = math.ceil(self.total_records / RECORDS_PER_PAGE) if RECORDS_PER_PAGE > 0 else 0
-        self.fetch_page_data()
-
-    def fetch_page_data(self):
-        if not self.last_search_conditions: return
-        if not self._all_db_fields_r_alldata:
-            self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
-        results, db_cols, error_msg = search_r_alldata(
-            self.last_search_conditions, self._all_db_fields_r_alldata,
-            self.LOGICAL_PK_FIELDS, self.current_page
-        )
-        if error_msg:
-            show_error_message(self, "Search Error", error_msg)
-            self.results_table.setRowCount(0)
-            self.original_data_cache.clear()
-            return
-        self.db_column_names = db_cols
-        self.display_results(results)
+        
+        self.execute_search_and_update_view()
 
     def display_results(self, results_tuples):
         self.setup_table_headers_text_and_widths()
@@ -597,14 +628,11 @@ class EditDataScreen(QWidget):
 
         self.results_table.setRowCount(0)
         self.original_data_cache.clear()
-        if hasattr(self, "filtered_data_cache"): self.filtered_data_cache.clear()
-        if hasattr(self, "active_filters"): self.active_filters.clear()
-        if hasattr(self, "header"): self.header.clear_all_filters()
         
-        # DO NOT clear self.edited_items here
-
         if not self.total_records > 0:
-            show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
+            # Only show message if it's a new search, not just an empty filter result
+            if not self.active_filters:
+                show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
             self.results_table.setRowCount(len(results_tuples))
             displayed_db_fields = self.column_mapper.get_fields_to_show()
@@ -641,7 +669,6 @@ class EditDataScreen(QWidget):
 
         self.results_table.itemChanged.connect(self.handle_item_changed)
         self.results_table.setUpdatesEnabled(True)
-        self.update_pagination_controls()
         self.apply_column_visibility()
 
     def go_to_page_action(self, page_action_func):
@@ -668,14 +695,14 @@ class EditDataScreen(QWidget):
         def action():
             if self.current_page > 1:
                 self.current_page -= 1
-                self.fetch_page_data()
+                self.execute_search_and_update_view()
         self.go_to_page_action(action)
 
     def go_to_next_page(self):
         def action():
             if self.current_page < self.total_pages:
                 self.current_page += 1
-                self.fetch_page_data()
+                self.execute_search_and_update_view()
         self.go_to_page_action(action)
 
     def update_pagination_controls(self):
@@ -686,7 +713,7 @@ class EditDataScreen(QWidget):
             self.prev_button.setEnabled(self.current_page > 1)
             self.next_button.setEnabled(self.current_page < self.total_pages)
         else:
-            self.page_info_label.setText("")
+            self.page_info_label.setText("ไม่พบข้อมูล")
             self.prev_button.setEnabled(False)
             self.next_button.setEnabled(False)
 
@@ -760,7 +787,7 @@ class EditDataScreen(QWidget):
             show_info_message(self, "สำเร็จ", f"บันทึกข้อมูลที่แก้ไขจำนวน {saved_count} แถวเรียบร้อยแล้ว")
             self.edited_items.clear()
             self.update_save_button_state()
-            filter_table_data(self)
+            self.execute_search_and_update_view() # Refresh data after save
         else:
             show_info_message(self, "ข้อมูลล่าสุด", "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม")
             self.edited_items.clear()
@@ -784,7 +811,6 @@ class EditDataScreen(QWidget):
             self.toggle_search_button.setText("▲ ซ่อนตัวกรอง")
             
         if hasattr(self, 'search_inputs_container'):
-            # ตั้งค่าความสูงสูงสุดเป็นค่าที่เหมาะสมเพื่อให้แสดงผลเต็มที่ทันที
             self.search_inputs_container.setMaximumHeight(self.search_inputs_container.sizeHint().height())
             self.search_inputs_container.show()
 
@@ -814,11 +840,8 @@ class EditDataScreen(QWidget):
         self.update_pagination_controls()
         self.update_save_button_state()
         
-        # --- ADDED THIS LINE TO RESET FILTER VISIBILITY ---
         self.reset_search_visibility_state()
         
-        # หมายเหตุ: บรรทัดที่ตั้งค่า user_fullname_label ถูกย้ายไปที่ clear_user_info()
-
     def clear_search(self):
         self.reset_screen_state()
 

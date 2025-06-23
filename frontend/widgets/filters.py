@@ -38,305 +38,41 @@ from frontend.data_rules.edit_data_rules import (
     FIELD_VALIDATION_RULES_CONFIG,
 )
 
-
-def apply_table_filter(
-    eds_instance, column, text, show_blank_only
-):  # เปลี่ยน self เป็น eds_instance เพื่อความชัดเจน
-    """ใช้ฟิลเตอร์กับตาราง"""
-    if not eds_instance.original_data_cache:
-        return
-
+def apply_table_filter(eds_instance, column, text, show_blank_only):
+    """
+    Updates the active filters and triggers a database re-query.
+    """
     if text or show_blank_only:
         eds_instance.active_filters[column] = {
-            "text": text.lower(),
+            "text": text,  # Keep original case for backend
             "show_blank": show_blank_only,
         }
     else:
         if column in eds_instance.active_filters:
             del eds_instance.active_filters[column]
 
-    filter_table_data(eds_instance)  # <--- แก้ไข: เรียกฟังก์ชันโดยตรง ส่ง instance ไป
+    # Reset to the first page and re-execute the search
+    eds_instance.current_page = 1
+    # This method now handles DB query and display refresh
+    eds_instance.execute_search_and_update_view()
 
-
-def clear_table_filter(eds_instance, column):  # เปลี่ยน self เป็น eds_instance
-    """ล้างฟิลเตอร์ของคอลัมน์"""
-    if column in eds_instance.active_filters:
-        del eds_instance.active_filters[column]
-    filter_table_data(eds_instance)  # <--- แก้ไข: เรียกฟังก์ชันโดยตรง ส่ง instance ไป
-
-
-def filter_table_data(eds_instance):  # เปลี่ยน self เป็น eds_instance
-    """กรองข้อมูลในตารางตามฟิลเตอร์ที่ใช้งานอยู่"""
-    if not eds_instance.original_data_cache:
-        return
-
-    # displayed_fields ควรมาจาก eds_instance.column_mapper
-    displayed_fields = eds_instance.column_mapper.get_fields_to_show()
-    filtered_data_list = []  # เปลี่ยนชื่อตัวแปรเพื่อไม่ให้ซ้ำกับชื่อฟังก์ชัน display_filtered_results
-
-    if not eds_instance.active_filters:
-        # ถ้าไม่มีฟิลเตอร์เลย ให้ใช้ข้อมูลดั้งเดิมทั้งหมด
-        filtered_data_list = eds_instance.original_data_cache[:]
-    else:
-        for row_data in eds_instance.original_data_cache:
-            should_include = True
-            for (
-                col_idx,
-                filter_info,
-            ) in eds_instance.active_filters.items():  # ใช้ col_idx จาก active_filters
-                if col_idx == 0:
-                    continue
-
-                field_index = col_idx - 1  # active_filters key คือ visual column index
-                if not (0 <= field_index < len(displayed_fields)):
-                    continue
-
-                field_name = displayed_fields[field_index]
-                field_value = row_data.get(field_name)
-                value_str = str(field_value).strip() if field_value is not None else ""
-
-                if filter_info.get("show_blank", False):
-                    if value_str != "":
-                        should_include = False
-                        break
-                
-                filter_text_val = filter_info.get("text", "").strip()
-                if filter_text_val:
-                    if filter_text_val.lower() not in value_str.lower():
-                        should_include = False
-                        break
-
-            if should_include:
-                filtered_data_list.append(row_data)
-
-    display_filtered_results(
-        eds_instance, filtered_data_list
-    )  # <--- แก้ไข: เรียกฟังก์ชันโดยตรง ส่ง instance ไป
-
-
-def display_filtered_results(
-    eds_instance, filtered_data
-):  # เปลี่ยน self เป็น eds_instance และชื่อ filtered_data_list เป็น filtered_data
-    """แสดงผลข้อมูลที่ถูกฟิลเตอร์"""
-    eds_instance.results_table.setUpdatesEnabled(False)
-    try:
-        eds_instance.results_table.itemChanged.disconnect(
-            eds_instance.handle_item_changed
-        )
-    except TypeError:
-        pass
-
-    # === CHANGE START: ไม่ล้าง edited_items ที่นี่ ===
-    # eds_instance.edited_items.clear()
-    # === CHANGE END ===
-
-    if hasattr(
-        eds_instance, "setup_table_headers_text_and_widths"
-    ):
-        eds_instance.setup_table_headers_text_and_widths()
-
-    eds_instance.results_table.setRowCount(0)
-    eds_instance.filtered_data_cache = filtered_data
-
-    if not filtered_data:
-        if eds_instance.active_filters:
-            show_info_message(eds_instance, "ผลการกรอง", "ไม่พบข้อมูลที่ตรงกับเงื่อนไขการกรอง")
-    else:
-        eds_instance.results_table.setRowCount(len(filtered_data))
-        displayed_db_fields_in_table = eds_instance.column_mapper.get_fields_to_show()
-
-        # สร้าง map สำหรับค้นหา original_row_idx จาก primary key เพื่อประสิทธิภาพ
-        pk_to_original_idx_map = {
-            tuple(row.get(pk) for pk in eds_instance.LOGICAL_PK_FIELDS): i
-            for i, row in enumerate(eds_instance.original_data_cache)
-        }
-
-        for row_idx, row_data in enumerate(filtered_data):
-            # ตั้งค่าคอลัมน์ลำดับ
-            sequence_text = str(row_idx + 1)
-            sequence_item = QTableWidgetItem(sequence_text)
-            sequence_item.setTextAlignment(Qt.AlignCenter)
-            flags = sequence_item.flags()
-            sequence_item.setFlags(flags & ~Qt.ItemIsEditable)
-            sequence_item.setBackground(QColor("#f0f0f0"))
-            eds_instance.results_table.setItem(row_idx, 0, sequence_item)
-            
-            # หา original index ของแถวนี้
-            pk_tuple = tuple(row_data.get(pk) for pk in eds_instance.LOGICAL_PK_FIELDS)
-            original_row_idx = pk_to_original_idx_map.get(pk_tuple)
-
-            if original_row_idx is None:
-                continue # ไม่ควรเกิดขึ้นถ้าข้อมูลถูกต้อง
-
-            for db_field_idx, displayed_field_name in enumerate(
-                displayed_db_fields_in_table
-            ):
-                visual_col_idx_table = db_field_idx + 1
-                
-                edit_key = (original_row_idx, visual_col_idx_table)
-                is_edited = edit_key in eds_instance.edited_items
-
-                if is_edited:
-                    # ถ้า cell นี้ถูกแก้ไข ให้ใช้ค่าจาก edited_items
-                    cell_value = eds_instance.edited_items[edit_key]
-                else:
-                    # มิฉะนั้นใช้ค่าจากข้อมูลที่กรองมา
-                    raw_value = row_data.get(displayed_field_name)
-                    cell_value = str(raw_value) if raw_value is not None else ""
-
-                item = QTableWidgetItem(cell_value)
-                
-                # ตั้งค่าการจัดเรียง
-                if displayed_field_name in ["FirstName", "LastName"]:
-                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                else:
-                    item.setTextAlignment(Qt.AlignCenter)
-
-                # ตั้งค่าการแก้ไขได้
-                is_editable = not (
-                    displayed_field_name in eds_instance.LOGICAL_PK_FIELDS
-                    or displayed_field_name in eds_instance.NON_EDITABLE_FIELDS
-                )
-                
-                if is_editable:
-                    item.setFlags(item.flags() | Qt.ItemIsEditable)
-                    if is_edited:
-                        # ถ้าแก้ไขแล้ว ให้เปลี่ยนสีพื้นหลัง
-                        item.setBackground(QColor("lightyellow"))
-                else:  # Not editable
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    item.setBackground(QColor("#f0f0f0"))
-
-                eds_instance.results_table.setItem(row_idx, visual_col_idx_table, item)
-
-    eds_instance.results_table.itemChanged.connect(eds_instance.handle_item_changed)
-    eds_instance.results_table.setUpdatesEnabled(True)
-    
-    # ไม่ต้องอัปเดตสถานะปุ่มบันทึกที่นี่ เพราะการแก้ไขยังคงอยู่
-    # if hasattr(eds_instance, "update_save_button_state"):
-    #     eds_instance.update_save_button_state()
-    from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QBrush
-
-from frontend.utils.error_message import show_info_message
-
-def apply_table_filter(eds_instance, column, text, show_blank_only):
-    if not eds_instance.original_data_cache: return
-    if text or show_blank_only:
-        eds_instance.active_filters[column] = {"text": text.lower(), "show_blank": show_blank_only}
-    elif column in eds_instance.active_filters:
-        del eds_instance.active_filters[column]
-    filter_table_data(eds_instance)
 
 def clear_table_filter(eds_instance, column):
+    """
+    Clears a specific column's filter and triggers a database re-query.
+    """
     if column in eds_instance.active_filters:
         del eds_instance.active_filters[column]
-    filter_table_data(eds_instance)
+    
+    # Reset to the first page and re-execute the search
+    eds_instance.current_page = 1
+    eds_instance.execute_search_and_update_view()
 
+# The old filter_table_data and display_filtered_results are no longer needed
+# as filtering is now done server-side (database query).
+# They can be safely removed from this file.
 def filter_table_data(eds_instance):
-    if not eds_instance.original_data_cache: return
-    
-    displayed_fields = eds_instance.column_mapper.get_fields_to_show()
-    
-    if not eds_instance.active_filters:
-        filtered_data_list = eds_instance.original_data_cache[:]
-    else:
-        filtered_data_list = []
-        for row_data in eds_instance.original_data_cache:
-            should_include = True
-            for col_idx, filter_info in eds_instance.active_filters.items():
-                if col_idx == 0: continue
-                field_index = col_idx - 1
-                if not (0 <= field_index < len(displayed_fields)): continue
-
-                field_name = displayed_fields[field_index]
-                # --- CHANGE START: Check edited value first ---
-                pk_tuple = tuple(row_data.get(pk) for pk in eds_instance.LOGICAL_PK_FIELDS)
-                edited_value = eds_instance.edited_items.get(pk_tuple, {}).get('edits', {}).get(field_name)
-
-                if edited_value is not None:
-                    field_value = edited_value
-                else:
-                    field_value = row_data.get(field_name)
-                # --- CHANGE END ---
-                
-                value_str = str(field_value).strip() if field_value is not None else ""
-                
-                if filter_info.get("show_blank", False):
-                    if value_str != "":
-                        should_include = False
-                        break
-                
-                filter_text_val = filter_info.get("text", "").strip()
-                if filter_text_val and filter_text_val.lower() not in value_str.lower():
-                    should_include = False
-                    break
-            
-            if should_include:
-                filtered_data_list.append(row_data)
-                
-    display_filtered_results(eds_instance, filtered_data_list)
+    pass
 
 def display_filtered_results(eds_instance, filtered_data):
-    """แสดงผลข้อมูลที่ถูกฟิลเตอร์ โดยยังคงการแก้ไขที่ยังไม่บันทึกไว้"""
-    eds_instance.results_table.setUpdatesEnabled(False)
-    try:
-        eds_instance.results_table.itemChanged.disconnect(eds_instance.handle_item_changed)
-    except TypeError: pass
-
-    if hasattr(eds_instance, "setup_table_headers_text_and_widths"):
-        eds_instance.setup_table_headers_text_and_widths()
-
-    eds_instance.results_table.setRowCount(0)
-    eds_instance.filtered_data_cache = filtered_data
-
-    if not filtered_data:
-        if eds_instance.active_filters:
-            show_info_message(eds_instance, "ผลการกรอง", "ไม่พบข้อมูลที่ตรงกับเงื่อนไขการกรอง")
-    else:
-        eds_instance.results_table.setRowCount(len(filtered_data))
-        displayed_db_fields = eds_instance.column_mapper.get_fields_to_show()
-
-        for row_idx, row_data in enumerate(filtered_data):
-            sequence_item = QTableWidgetItem(str(row_idx + 1))
-            sequence_item.setTextAlignment(Qt.AlignCenter)
-            sequence_item.setFlags(sequence_item.flags() & ~Qt.ItemIsEditable)
-            sequence_item.setBackground(QColor("#f0f0f0"))
-            eds_instance.results_table.setItem(row_idx, 0, sequence_item)
-            
-            pk_tuple = tuple(row_data.get(pk) for pk in eds_instance.LOGICAL_PK_FIELDS)
-            row_edits = eds_instance.edited_items.get(pk_tuple, {}).get('edits', {})
-
-            for db_field_idx, field_name in enumerate(displayed_db_fields):
-                visual_col_idx = db_field_idx + 1
-                
-                cell_value = str(row_edits.get(field_name, row_data.get(field_name, "")))
-                item = QTableWidgetItem(cell_value)
-                
-                if field_name in ["FirstName", "LastName"]:
-                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                else:
-                    item.setTextAlignment(Qt.AlignCenter)
-                
-                is_editable = not (field_name in eds_instance.LOGICAL_PK_FIELDS or field_name in eds_instance.NON_EDITABLE_FIELDS)
-                
-                if is_editable:
-                    item.setFlags(item.flags() | Qt.ItemIsEditable)
-                    if field_name in row_edits:
-                        item.setBackground(QColor("lightyellow"))
-                else:
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    item.setBackground(QColor("#f0f0f0"))
-                
-                eds_instance.results_table.setItem(row_idx, visual_col_idx, item)
-
-    eds_instance.results_table.itemChanged.connect(eds_instance.handle_item_changed)
-    eds_instance.results_table.setUpdatesEnabled(True)
-    
-    if hasattr(eds_instance, "apply_column_visibility"):
-        eds_instance.apply_column_visibility()
-
-    if hasattr(eds_instance, "apply_column_visibility"):
-        eds_instance.apply_column_visibility()
-
+    pass

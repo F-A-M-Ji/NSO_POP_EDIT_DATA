@@ -32,8 +32,7 @@ def fetch_all_r_alldata_fields():
         print(f"Error fetching all fields: {e}")
         return []
 
-# === CHANGE START: เพิ่มฟังก์ชันสำหรับนับจำนวนผลลัพธ์ทั้งหมด ===
-def count_search_r_alldata(location_codes):
+def count_search_r_alldata(conditions):
     """นับจำนวนผลลัพธ์ทั้งหมดตามเงื่อนไขการค้นหา"""
     try:
         connection = get_connection()
@@ -41,7 +40,7 @@ def count_search_r_alldata(location_codes):
             return 0, "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"
 
         cursor = connection.cursor()
-        where_conditions, params = build_where_clause(location_codes)
+        where_conditions, params = build_where_clause(conditions)
         
         query = "SELECT COUNT(*) FROM [r_alldata_edit]"
         if where_conditions:
@@ -55,10 +54,9 @@ def count_search_r_alldata(location_codes):
     except Exception as e:
         error_msg = f"Error counting records: {str(e)}"
         return 0, error_msg
-# === CHANGE END ===
 
 
-def search_r_alldata(location_codes, all_db_fields, logical_pk_fields, page=1):
+def search_r_alldata(conditions, all_db_fields, logical_pk_fields, page=1):
     """ค้นหาข้อมูลจากตาราง r_alldata_edit ตามเงื่อนไขที่กำหนดและรองรับ Pagination"""
     try:
         connection = get_connection()
@@ -66,9 +64,8 @@ def search_r_alldata(location_codes, all_db_fields, logical_pk_fields, page=1):
             return [], [], "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"
 
         cursor = connection.cursor()
-        where_conditions, params = build_where_clause(location_codes)
+        where_conditions, params = build_where_clause(conditions)
 
-        # === CHANGE START: ปรับ SQL Query ให้รองรับ OFFSET-FETCH สำหรับ Pagination ===
         base_query = f"SELECT * FROM [r_alldata_edit]"
         
         if where_conditions:
@@ -88,13 +85,12 @@ def search_r_alldata(location_codes, all_db_fields, logical_pk_fields, page=1):
         
         # SQL Server บังคับให้มี ORDER BY เมื่อใช้ OFFSET
         if not order_by_clause:
-             order_by_clause = " ORDER BY (SELECT NULL)" # Fallback order
+                 order_by_clause = " ORDER BY (SELECT NULL)" # Fallback order
 
         offset = (page - 1) * RECORDS_PER_PAGE
         
         query += f"{order_by_clause} OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
         params.extend([offset, RECORDS_PER_PAGE])
-        # === CHANGE END ===
 
         cursor.execute(query, params)
         results = cursor.fetchall()
@@ -106,19 +102,44 @@ def search_r_alldata(location_codes, all_db_fields, logical_pk_fields, page=1):
         error_msg = f"Error searching r_alldata_edit: {str(e)}"
         return [], [], error_msg
 
-def build_where_clause(location_codes):
-    """Helper function to build WHERE clause and parameters"""
+def build_where_clause(conditions):
+    """Helper function to build WHERE clause and parameters from combined conditions."""
     where_conditions = []
     params = []
-    for key, value in location_codes.items():
-        if value is not None:
+    
+    for key, value in conditions.items():
+        if value is None:
+            continue
+
+        if key.startswith("filter_"):
+            # This is a header filter
+            field_name = key[len("filter_"):]
+            filter_info = value  # which is a dict like {"text": ..., "show_blank": ...}
+            
+            filter_text = filter_info.get("text", "").strip()
+            show_blank = filter_info.get("show_blank", False)
+
+            if show_blank:
+                # If show blank is checked, this is the only condition for this column
+                where_conditions.append(f"([{field_name}] IS NULL OR LTRIM(RTRIM([{field_name}])) = '')")
+            elif filter_text:
+                # Only if show_blank is false and there is text
+                # Use LIKE for text filtering, cast to handle non-string columns
+                where_conditions.append(f"CAST([{field_name}] AS NVARCHAR(MAX)) LIKE ?")
+                params.append(f"%{filter_text}%")
+            # If both are false, the filter is effectively cleared for this column, so do nothing
+
+        else:
+            # This is a top search bar filter
             converted_value = convert_to_native_type(value)
             if converted_value in [None, "", "blank"]:
                 where_conditions.append(f"([{key}] IS NULL OR [{key}] = '' OR LTRIM(RTRIM([{key}])) = '')")
             else:
                 where_conditions.append(f"[{key}] = ?")
                 params.append(converted_value)
+
     return " AND ".join(where_conditions), params
+
 
 def save_edited_r_alldata_rows(records_to_save, all_db_fields):
     """บันทึกข้อมูลที่แก้ไขลงในตาราง r_alldata_edit"""

@@ -56,7 +56,6 @@ from frontend.widgets.filters import (
 )
 from frontend.widgets.column_selector import ColumnSelectorPopup
 
-
 class CustomTableWidget(QTableWidget):
     """
     A custom QTableWidget that adds functionality for editing multiple cells at once.
@@ -77,28 +76,23 @@ class CustomTableWidget(QTableWidget):
         """
         Handles key press events to trigger multi-cell edit or paste operations.
         """
-        # Check for Ctrl+V (or Cmd+V on macOS) to paste into multiple cells
         if event.matches(QKeySequence.Paste):
             self.paste_into_selected_cells()
-            return  # Consume the event to prevent default paste behavior
+            return
 
-        # Check for typing printable characters to start multi-edit
-        # This should only trigger if multiple cells are selected and we are not already editing
         if (
             self.state() != QAbstractItemView.EditingState
             and len(self.selectedIndexes()) > 1
             and event.text()
             and event.text().isprintable()
         ):
-            # Check if any selected cell is editable before showing the dialog
             is_any_editable = any(
                 item.flags() & Qt.ItemIsEditable for item in self.selectedItems()
             )
             if is_any_editable:
                 self.prompt_for_multi_edit(initial_text=event.text())
-                return  # Consume the event
+                return
 
-        # Fallback to default QTableWidget behavior for all other cases
         super().keyPressEvent(event)
 
     def paste_into_selected_cells(self):
@@ -113,7 +107,6 @@ class CustomTableWidget(QTableWidget):
         if not clipboard_text:
             return
 
-        # Ask for user confirmation before pasting into a large number of cells
         reply = QMessageBox.question(
             self,
             "ยืนยันการวางข้อมูล",
@@ -131,7 +124,6 @@ class CustomTableWidget(QTableWidget):
         Opens an input dialog to get a new value from the user for bulk editing.
         """
         title = "แก้ไขหลายรายการพร้อมกัน"
-        # Combine the two lines of text with an HTML line break for the label
         label_text = "แก้ไขหลายรายการพร้อมกัน<br>ป้อนค่าใหม่สำหรับทุกช่องที่เลือก:"
 
         text, ok = QInputDialog.getText(
@@ -149,7 +141,6 @@ class CustomTableWidget(QTableWidget):
         """
         Applies a given string value to all selected, editable cells.
         """
-        # Block signals to perform a batch update, which is much faster.
         self.parent_screen.results_table.blockSignals(True)
 
         items_to_update = [
@@ -157,13 +148,10 @@ class CustomTableWidget(QTableWidget):
         ]
 
         for item in items_to_update:
-            # We must call setText first to update the item's text.
-            # Then, we manually call the change handler because signals are blocked.
             if item.text() != new_value:
                 item.setText(new_value)
                 self.parent_screen.handle_item_changed(item)
 
-        # Re-enable signals and manually trigger a UI state update.
         self.parent_screen.results_table.blockSignals(False)
         self.parent_screen.update_save_button_state()
 
@@ -182,7 +170,6 @@ class EditDataScreen(QWidget):
         self.column_selector_popup = None
         self.db_column_names = []
         self.original_data_cache = []
-        # filtered_data_cache is no longer the primary source for filtered views
         self.filtered_data_cache = []
         self.edited_items = {}
         self.active_filters = {}
@@ -191,9 +178,10 @@ class EditDataScreen(QWidget):
         self.total_records = 0
         self.total_pages = 0
         self.last_search_conditions = {}
+        self.has_performed_search = False
         self.validation_data_from_excel = load_validation_data_from_excel(self)
         update_rules_from_excel_data(self)
-        self.search_section_is_visible = True  # State for search visibility
+        self.search_section_is_visible = True
         self.setup_ui()
         self.load_initial_data()
 
@@ -425,7 +413,6 @@ class EditDataScreen(QWidget):
 
         results_layout.addLayout(results_header_layout)
 
-        # Use the new CustomTableWidget instead of the standard QTableWidget
         self.results_table = CustomTableWidget(self)
         self.setup_results_table()
         results_layout.addWidget(self.results_table)
@@ -480,14 +467,12 @@ class EditDataScreen(QWidget):
         Toggles the visibility of the search input fields with a sliding animation.
         """
         if self.animation.state() == QPropertyAnimation.Running:
-            return  # Ignore clicks during animation
+            return
 
         if self.search_section_is_visible:
-            # Collapse
             self.animation.setDirection(QPropertyAnimation.Backward)
             self.toggle_search_button.setText("▼ แสดงตัวกรอง")
         else:
-            # Expand
             self.animation.setDirection(QPropertyAnimation.Forward)
             self.toggle_search_button.setText("▲ ซ่อนตัวกรอง")
 
@@ -522,7 +507,6 @@ class EditDataScreen(QWidget):
     def setup_results_table(self):
         self.results_table.setEditTriggers(QAbstractItemView.DoubleClicked)
         self.results_table.itemChanged.connect(self.handle_item_changed)
-        # Enable multi-selection by items (cells)
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.results_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.results_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -601,7 +585,6 @@ class EditDataScreen(QWidget):
         if reply == QMessageBox.Yes:
             self.edited_items.clear()
             self.update_save_button_state()
-            # Refresh the current view to remove highlights
             self.execute_search_and_update_view()
 
     def update_save_button_state(self):
@@ -627,7 +610,6 @@ class EditDataScreen(QWidget):
         if visual_col == 0:
             return
 
-        # The current data source is always original_data_cache
         current_data_source = self.original_data_cache
         if visual_row >= len(current_data_source):
             return
@@ -692,7 +674,6 @@ class EditDataScreen(QWidget):
         Combines top search and header filters, re-queries the database,
         and updates the entire view including pagination.
         """
-        # 1. Combine search conditions
         combined_conditions = self.last_search_conditions.copy()
         displayed_fields = self.column_mapper.get_fields_to_show()
 
@@ -701,7 +682,6 @@ class EditDataScreen(QWidget):
                 field_name = displayed_fields[col_idx - 1]
                 combined_conditions[f"filter_{field_name}"] = filter_info
 
-        # 2. Count total records with combined filters
         total, err = count_search_r_alldata(combined_conditions)
         if err:
             show_error_message(self, "Search Error", err)
@@ -715,15 +695,13 @@ class EditDataScreen(QWidget):
             else 0
         )
 
-        # Adjust current page if it's out of bounds after filtering
         if self.current_page > self.total_pages and self.total_pages > 0:
             self.current_page = self.total_pages
         if self.total_pages == 0 and self.total_records > 0:
             self.current_page = 1
         elif self.total_pages == 0:
-            self.current_page = 1  # Reset to 1 if no results
+            self.current_page = 1
 
-        # 3. Fetch data for the adjusted current page
         if not self._all_db_fields_r_alldata:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
 
@@ -741,7 +719,6 @@ class EditDataScreen(QWidget):
             self.db_column_names = db_cols
             self.display_results(results)
 
-        # This was previously in display_results, but it makes more sense here
         self.update_pagination_controls()
 
     def search_data(self):
@@ -760,11 +737,10 @@ class EditDataScreen(QWidget):
                     return
             elif reply == QMessageBox.Cancel:
                 return
-            else:  # Discard
+            else:
                 self.edited_items.clear()
                 self.update_save_button_state()
 
-        # This is the main search, so clear header filters
         self.active_filters.clear()
         if hasattr(self, "header"):
             self.header.clear_all_filters()
@@ -778,8 +754,10 @@ class EditDataScreen(QWidget):
             show_error_message(
                 self, "Search Error", "กรุณาเลือกเงื่อนไขในการค้นหาอย่างน้อยหนึ่งรายการ"
             )
+            self.has_performed_search = False
             return
 
+        self.has_performed_search = True
         self.execute_search_and_update_view()
 
     def display_results(self, results_tuples):
@@ -794,7 +772,6 @@ class EditDataScreen(QWidget):
         self.original_data_cache.clear()
 
         if not self.total_records > 0:
-            # Only show message if it's a new search, not just an empty filter result
             if not self.active_filters:
                 show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
@@ -979,7 +956,7 @@ class EditDataScreen(QWidget):
             )
             self.edited_items.clear()
             self.update_save_button_state()
-            self.execute_search_and_update_view()  # Refresh data after save
+            self.execute_search_and_update_view()
         else:
             show_info_message(
                 self, "ข้อมูลล่าสุด", "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม"
@@ -1033,6 +1010,7 @@ class EditDataScreen(QWidget):
         self.current_page = 1
         self.total_records = 0
         self.total_pages = 0
+        self.has_performed_search = False
         self.visible_fields = self.all_possible_fields.copy()
         self.apply_column_visibility()
         if hasattr(self, "header"):

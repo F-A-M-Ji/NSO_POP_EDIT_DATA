@@ -41,36 +41,48 @@ from frontend.data_rules.edit_data_rules import (
 def apply_table_filter(eds_instance, column, text, show_blank_only):
     """
     Updates the active filters and triggers a database re-query.
+    Will not run if no main search has been performed.
     """
+    if not eds_instance.has_performed_search:
+        show_info_message(
+            eds_instance, "ไม่สามารถกรองได้", "กรุณาทำการค้นหาข้อมูลหลักก่อนใช้ตัวกรองในตาราง"
+        )
+        header = eds_instance.results_table.horizontalHeader()
+        if header and hasattr(header, "filter_dropdown") and header.filter_dropdown:
+            header.filter_dropdown.hide()
+        return
+
     if text or show_blank_only:
         eds_instance.active_filters[column] = {
-            "text": text,  # Keep original case for backend
+            "text": text,
             "show_blank": show_blank_only,
         }
     else:
         if column in eds_instance.active_filters:
             del eds_instance.active_filters[column]
 
-    # Reset to the first page and re-execute the search
     eds_instance.current_page = 1
-    # This method now handles DB query and display refresh
     eds_instance.execute_search_and_update_view()
-
 
 def clear_table_filter(eds_instance, column):
     """
     Clears a specific column's filter and triggers a database re-query.
+    Will not re-query if no main search has been performed.
     """
+    if not eds_instance.has_performed_search:
+        if column in eds_instance.active_filters:
+            del eds_instance.active_filters[column]
+        header = eds_instance.results_table.horizontalHeader()
+        if header and hasattr(header, "updateSection"):
+            header.updateSection(column)
+        return
+
     if column in eds_instance.active_filters:
         del eds_instance.active_filters[column]
-    
-    # Reset to the first page and re-execute the search
+
     eds_instance.current_page = 1
     eds_instance.execute_search_and_update_view()
 
-# The old filter_table_data and display_filtered_results are no longer needed
-# as filtering is now done server-side (database query).
-# They can be safely removed from this file.
 def filter_table_data(eds_instance):
     pass
 

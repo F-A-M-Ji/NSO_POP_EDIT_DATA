@@ -26,7 +26,6 @@ from PyQt5.QtGui import (
     QBrush,
 )
 
-
 class FilterDropdown(QWidget):
     """Widget สำหรับแสดงตัวเลือกฟิลเตอร์"""
 
@@ -41,8 +40,6 @@ class FilterDropdown(QWidget):
         self.adjustSize()
 
     def setup_ui(self):
-        
-        
         self.setObjectName(
             "FilterDropdown"
         )
@@ -106,7 +103,6 @@ class FilterDropdown(QWidget):
         """ปรับขนาดเมื่อ widget แสดงผล"""
         super().showEvent(event)
         self.adjustSize()
-
 
 class FilterableMultiLineHeaderView(QHeaderView):
     """MultiLineHeaderView ที่มีฟิลเตอร์"""
@@ -333,7 +329,7 @@ class FilterableMultiLineHeaderView(QHeaderView):
         pass
 
     def show_filter_dropdown(self, column, global_pos):
-        """แสดง dropdown ฟิลเตอร์"""
+        """แสดง dropdown ฟิลเตอร์ในตำแหน่งที่ถูกต้อง ไม่ให้ออกนอกหน้าจอ"""
         if self.filter_dropdown:
             self.filter_dropdown.close()
 
@@ -346,11 +342,32 @@ class FilterableMultiLineHeaderView(QHeaderView):
             self.filter_dropdown.set_filter_values(
                 filter_info.get("text", ""), filter_info.get("show_blank", False)
             )
+        
+        button_rect = self.filter_buttons.get(column)
+        if not button_rect:
+            return
 
-        dropdown_x = global_pos.x() - 250
-        dropdown_y = global_pos.y() + 10
+        screen_geometry = QApplication.desktop().availableGeometry(self)
+        
+        popup_size = self.filter_dropdown.size()
 
-        self.filter_dropdown.move(dropdown_x, dropdown_y)
+        ideal_point = self.mapToGlobal(button_rect.bottomRight())
+        
+        popup_x = ideal_point.x() - popup_size.width()
+        
+        if popup_x < screen_geometry.left():
+            popup_x = self.mapToGlobal(button_rect.bottomLeft()).x()
+
+        if popup_x + popup_size.width() > screen_geometry.right():
+            popup_x = screen_geometry.right() - popup_size.width()
+            
+        popup_y = ideal_point.y()
+
+        if popup_y + popup_size.height() > screen_geometry.bottom():
+            popup_y = self.mapToGlobal(button_rect.topLeft()).y() - popup_size.height()
+            
+        self.filter_dropdown.move(popup_x, popup_y)
+
         self.filter_dropdown.show()
         self.filter_dropdown.search_input.setFocus()
 
@@ -394,6 +411,5 @@ class FilterableMultiLineHeaderView(QHeaderView):
 
     def updateGeometries(self):
         super().updateGeometries()
-
 
 MultiLineHeaderView = FilterableMultiLineHeaderView

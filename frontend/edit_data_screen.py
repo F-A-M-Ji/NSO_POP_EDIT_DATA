@@ -194,7 +194,7 @@ class EditDataScreen(QWidget):
         main_layout.setContentsMargins(5, 0, 5, 5)
 
         header_layout = QHBoxLayout()
-        header_label = QLabel("ระบบแก้ไขข้อมูล สปค. 68")
+        header_label = QLabel("ระบบบรรณาธิกรข้อมูล สปค.68")
         header_label.setObjectName("headerLabel")
         header_layout.addWidget(header_label)
         header_layout.addStretch()

@@ -61,7 +61,8 @@ class ChangePasswordScreen(QWidget):
         add_shadow_effect(password_frame)
 
         password_layout = QVBoxLayout(password_frame)
-        # password_layout.setSpacing(20)
+        password_layout.setSpacing(15)
+        password_layout.setContentsMargins(25, 25, 25, 25) # เพิ่มระยะห่างภายในกรอบ
 
         form_title = QLabel("กรุณาตั้งรหัสผ่านใหม่")
         form_title.setAlignment(Qt.AlignCenter)

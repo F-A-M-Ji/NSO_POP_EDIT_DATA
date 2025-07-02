@@ -19,8 +19,10 @@ from PyQt5.QtWidgets import (
     QInputDialog,
     QLineEdit,
 )
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QThread, QObject, pyqtSignal
 from PyQt5.QtGui import QColor, QBrush, QFont, QFontMetrics, QIcon, QKeySequence
+
+from frontend.widgets.loading_widget import LoadingOverlay
 
 from backend.column_mapper import ColumnMapper
 from backend.alldata_operations import (
@@ -55,6 +57,55 @@ from frontend.widgets.filters import (
     clear_table_filter,
 )
 from frontend.widgets.column_selector import ColumnSelectorPopup
+
+class SaveWorker(QObject):
+    """Worker สำหรับบันทึกข้อมูลใน Thread แยก เพื่อไม่ให้ UI ค้าง"""
+    finished = pyqtSignal(int, str)
+
+    def __init__(self, records_to_save, all_db_fields):
+        super().__init__()
+        self.records_to_save = records_to_save
+        self.all_db_fields = all_db_fields
+
+    def run(self):
+        """เริ่มการทำงานบันทึกข้อมูล"""
+        saved_count, error_msg = save_edited_r_alldata_rows(
+            self.records_to_save, self.all_db_fields
+        )
+        self.finished.emit(saved_count, error_msg)
+
+
+class SearchWorker(QObject):
+    """Worker สำหรับค้นหาข้อมูลใน Thread แยก เพื่อไม่ให้ UI ค้าง"""
+    finished = pyqtSignal(dict)
+
+    def __init__(self, search_conditions, all_db_fields, logical_pk_fields, current_page):
+        super().__init__()
+        self.search_conditions = search_conditions
+        self.all_db_fields = all_db_fields
+        self.logical_pk_fields = logical_pk_fields
+        self.current_page = current_page
+
+    def run(self):
+        """เริ่มการค้นหาและนับจำนวนข้อมูล"""
+        results_dict = {
+            "total_records": 0, "count_error": None,
+            "search_results": [], "db_cols": [], "search_error": None
+        }
+        total, count_err = count_search_r_alldata(self.search_conditions)
+        results_dict["total_records"] = total
+        results_dict["count_error"] = count_err
+
+        if not count_err:
+            results, db_cols, search_err = search_r_alldata(
+                self.search_conditions, self.all_db_fields,
+                self.logical_pk_fields, self.current_page
+            )
+            results_dict["search_results"] = results
+            results_dict["db_cols"] = db_cols
+            results_dict["search_error"] = search_err
+
+        self.finished.emit(results_dict)
 
 class CustomTableWidget(QTableWidget):
     """
@@ -182,6 +233,10 @@ class EditDataScreen(QWidget):
         self.validation_data_from_excel = load_validation_data_from_excel(self)
         update_rules_from_excel_data(self)
         self.search_section_is_visible = True
+        
+        self.thread = None
+        self.worker = None
+
         self.setup_ui()
         self.load_initial_data()
 
@@ -568,7 +623,7 @@ class EditDataScreen(QWidget):
 
         self.header.setSectionResizeMode(QHeaderView.Interactive)
         self.header.style().unpolish(self)
-        self.header.style().polish(self.header)
+        self.header.style().polish(self)
         self.header.updateGeometries()
         self.results_table.updateGeometries()
 
@@ -671,55 +726,72 @@ class EditDataScreen(QWidget):
 
     def execute_search_and_update_view(self):
         """
-        Combines top search and header filters, re-queries the database,
-        and updates the entire view including pagination.
+        Triggers a search operation in a background thread and updates the view upon completion.
         """
+        if self.thread and self.thread.isRunning():
+            return
+            
+        self.loading_overlay = LoadingOverlay(self, "กำลังค้นหาข้อมูล...")
+        self.loading_overlay.show()
+
         combined_conditions = self.last_search_conditions.copy()
         displayed_fields = self.column_mapper.get_fields_to_show()
-
         for col_idx, filter_info in self.active_filters.items():
             if col_idx > 0 and (col_idx - 1) < len(displayed_fields):
                 field_name = displayed_fields[col_idx - 1]
                 combined_conditions[f"filter_{field_name}"] = filter_info
-
-        total, err = count_search_r_alldata(combined_conditions)
-        if err:
-            show_error_message(self, "Search Error", err)
-            self.total_records = 0
-        else:
-            self.total_records = total
-
-        self.total_pages = (
-            math.ceil(self.total_records / RECORDS_PER_PAGE)
-            if RECORDS_PER_PAGE > 0
-            else 0
-        )
-
-        if self.current_page > self.total_pages and self.total_pages > 0:
-            self.current_page = self.total_pages
-        if self.total_pages == 0 and self.total_records > 0:
-            self.current_page = 1
-        elif self.total_pages == 0:
-            self.current_page = 1
-
+        
         if not self._all_db_fields_r_alldata:
             self._all_db_fields_r_alldata = fetch_all_r_alldata_fields()
 
-        results, db_cols, error_msg = search_r_alldata(
+        self.thread = QThread()
+        self.worker = SearchWorker(
             combined_conditions,
             self._all_db_fields_r_alldata,
             self.LOGICAL_PK_FIELDS,
             self.current_page,
         )
-        if error_msg:
-            show_error_message(self, "Search Error", error_msg)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_search_finished)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        # self.thread.finished.connect(self.thread.deleteLater) # <-- REMOVED THIS LINE
+        
+        self.thread.start()
+
+    def on_search_finished(self, results_dict):
+        """
+        Slot to handle the results from the SearchWorker.
+        """
+        self.loading_overlay.accept()
+
+        if results_dict["count_error"]:
+            show_error_message(self, "Search Error", results_dict["count_error"])
+            self.total_records = 0
+        else:
+            self.total_records = results_dict["total_records"]
+        
+        self.total_pages = (
+            math.ceil(self.total_records / RECORDS_PER_PAGE) if RECORDS_PER_PAGE > 0 else 0
+        )
+        
+        if self.current_page > self.total_pages and self.total_pages > 0:
+            self.current_page = self.total_pages
+        if self.total_pages == 0:
+            self.current_page = 1
+        
+        if results_dict["search_error"]:
+            show_error_message(self, "Search Error", results_dict["search_error"])
             self.results_table.setRowCount(0)
             self.original_data_cache.clear()
         else:
-            self.db_column_names = db_cols
-            self.display_results(results)
+            self.db_column_names = results_dict["db_cols"]
+            self.display_results(results_dict["search_results"])
 
         self.update_pagination_controls()
+
 
     def search_data(self):
         if self.edited_items:
@@ -732,12 +804,11 @@ class EditDataScreen(QWidget):
                 QMessageBox.Cancel,
             )
             if reply == QMessageBox.Save:
-                self.execute_save_edits()
-                if self.edited_items:
-                    return
+                self.prompt_save_edits() 
+                return
             elif reply == QMessageBox.Cancel:
                 return
-            else:
+            else: # Discard
                 self.edited_items.clear()
                 self.update_save_button_state()
 
@@ -772,7 +843,7 @@ class EditDataScreen(QWidget):
         self.original_data_cache.clear()
 
         if not self.total_records > 0:
-            if not self.active_filters:
+            if self.has_performed_search and not self.active_filters:
                 show_info_message(self, "ผลการค้นหา", "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ")
         else:
             self.results_table.setRowCount(len(results_tuples))
@@ -834,13 +905,14 @@ class EditDataScreen(QWidget):
                 QMessageBox.Cancel,
             )
             if reply == QMessageBox.Save:
-                self.execute_save_edits()
-                if not self.edited_items:  # Succeeded
-                    page_action_func()
+                self.prompt_save_edits()
+                return 
             elif reply == QMessageBox.Discard:
                 self.edited_items.clear()
                 self.update_save_button_state()
                 page_action_func()
+            else: # Cancel
+                return
         else:
             page_action_func()
 
@@ -910,6 +982,9 @@ class EditDataScreen(QWidget):
             self.execute_save_edits()
 
     def execute_save_edits(self):
+        """
+        Validates and saves edited data using a background thread.
+        """
         if (
             self.parent_app.current_user is None
             or "fullname" not in self.parent_app.current_user
@@ -928,6 +1003,9 @@ class EditDataScreen(QWidget):
         if validation_errors:
             show_validation_errors(self, validation_errors)
             return
+        
+        if self.thread and self.thread.isRunning():
+            return
 
         editor_fullname = self.parent_app.current_user["fullname"]
         edit_timestamp = datetime.datetime.now()
@@ -943,9 +1021,27 @@ class EditDataScreen(QWidget):
             show_info_message(self, "ข้อมูลล่าสุด", "ไม่มีข้อมูลที่ถูกต้องสำหรับบันทึก")
             return
 
-        saved_count, error_msg = save_edited_r_alldata_rows(
-            list_of_records_to_save, self._all_db_fields_r_alldata
-        )
+        self.loading_overlay = LoadingOverlay(self, "กำลังบันทึกข้อมูล...")
+        self.loading_overlay.show()
+
+        self.thread = QThread()
+        self.worker = SaveWorker(list_of_records_to_save, self._all_db_fields_r_alldata)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.on_save_finished)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        # self.thread.finished.connect(self.thread.deleteLater) # <-- REMOVED THIS LINE
+
+        self.thread.start()
+
+    def on_save_finished(self, saved_count, error_msg):
+        """
+        Slot to handle the results from the SaveWorker.
+        """
+        self.loading_overlay.accept()
+
         if error_msg:
             show_error_message(self, "Save Error", error_msg)
             return
@@ -956,13 +1052,14 @@ class EditDataScreen(QWidget):
             )
             self.edited_items.clear()
             self.update_save_button_state()
-            self.execute_search_and_update_view()
+            self.execute_search_and_update_view() # โหลดข้อมูลใหม่หลังบันทึก
         else:
             show_info_message(
                 self, "ข้อมูลล่าสุด", "ไม่มีการเปลี่ยนแปลงที่จำเป็นต้องบันทึกเพิ่มเติม"
             )
             self.edited_items.clear()
             self.update_save_button_state()
+
 
     def clear_user_info(self):
         """ล้างข้อมูลผู้ใช้ที่แสดงบนหน้าจอ"""
@@ -1033,11 +1130,12 @@ class EditDataScreen(QWidget):
                 QMessageBox.Cancel,
             )
             if reply == QMessageBox.Save:
-                self.execute_save_edits()
-                if not self.edited_items:
-                    self.parent_app.perform_logout()
+                self.prompt_save_edits()
+                return 
             elif reply == QMessageBox.Discard:
                 self.parent_app.perform_logout()
+            else: # Cancel
+                return
         else:
             self.parent_app.perform_logout()
 
